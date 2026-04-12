@@ -845,43 +845,37 @@ vol_24h   = md.get("total_volume", {}).get("usd", 0)
 pct_sign  = "+" if pct_24h >= 0 else ""
 pct_bg    = "#eaf3de" if pct_24h >= 0 else "#fcebeb"
 pct_color = "#27500a" if pct_24h >= 0 else "#791f1f"
+bar_color = "#3b6d11" if pct_24h >= 0 else "#a32d2d"
+price_str = f"${cur_price:,.2f}"
+pct_str   = f"{pct_sign}{pct_24h:.2f}%"
+time_str  = datetime.now().strftime("%H:%M:%S")
+
 st.markdown(f"""
-<div style="
-    margin: 0 0 20px 0;
-    padding: 14px 20px;
-    border-left: 4px solid {'#3b6d11' if pct_24h >= 0 else '#a32d2d'};
-    background: #f8f9fa;
-    border-radius: 0 8px 8px 0;
-    display: flex;
-    align-items: center;
-    gap: 16px;
-    flex-wrap: wrap;
-">
+<div style="margin:0 0 20px 0;padding:14px 18px;border-left:4px solid {bar_color};background:#f8f9fa;border-radius:0 8px 8px 0;display:flex;align-items:stretch;justify-content:space-between;gap:16px;flex-wrap:wrap">
+
   <div>
-    <div style="font-size:11px;font-weight:600;letter-spacing:1px;color:#888;text-transform:uppercase;margin-bottom:2px">
-      Crypto Technical Dashboard
+    <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#999;text-transform:uppercase;margin-bottom:6px;font-family:sans-serif">
+      Dashboard &nbsp;·&nbsp; {days_label} &nbsp;·&nbsp; {time_str}
     </div>
-    <div style="font-size:22px;font-weight:700;color:#111;letter-spacing:-0.5px;line-height:1.2">
-      {coin_label}
+    <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+      <span style="font-size:20px;font-weight:700;color:#111;font-family:sans-serif">{coin_label}</span>
+      <span style="font-size:24px;font-weight:700;color:#111;font-family:sans-serif;letter-spacing:-0.5px">{price_str}</span>
+      <span style="font-size:13px;font-weight:600;padding:3px 10px;border-radius:20px;background:{pct_bg};color:{pct_color};font-family:sans-serif">{pct_str}</span>
     </div>
   </div>
-  <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-left:8px">
-    <span style="font-size:28px;font-weight:700;color:#111;letter-spacing:-1px">
-      ${cur_price:,.2f}
-    </span>
-    <span style="
-        font-size:14px;font-weight:600;
-        padding:4px 12px;border-radius:20px;
-        background:{pct_bg};color:{pct_color};
-        white-space:nowrap
-    ">
-      {pct_sign}{pct_24h:.2f}%
-    </span>
+
+  <div style="text-align:right;display:flex;flex-direction:column;justify-content:center;padding-left:16px;border-left:1px solid #e0e0e0">
+    <div style="font-size:16px;font-weight:700;color:#111;font-family:sans-serif;letter-spacing:-0.3px;white-space:nowrap">
+      Crypto Trading Signal App
+    </div>
+    <div style="font-size:12px;font-weight:600;color:#888;font-family:sans-serif;letter-spacing:1px;margin-top:2px;white-space:nowrap">
+      CTSA &nbsp;·&nbsp; v8.0
+    </div>
+    <div style="margin-top:6px">
+      <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:3px;background:#111;color:#fff;font-family:sans-serif;letter-spacing:.5px">BETA</span>
+    </div>
   </div>
-  <div style="margin-left:auto;text-align:right">
-    <div style="font-size:11px;color:#888;white-space:nowrap">{days_label}</div>
-    <div style="font-size:11px;color:#aaa;white-space:nowrap">{datetime.now().strftime('%H:%M:%S')}</div>
-  </div>
+
 </div>
 """, unsafe_allow_html=True)
 
