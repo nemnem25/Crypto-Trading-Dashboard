@@ -496,22 +496,22 @@ def build_main_chart(df, ha, ema20, ema50, sr_channels, fib_levels,
                       annotation_text=f"{label}{i+1}", annotation_position="right",
                       annotation_font_size=8, row=1, col=1)
 
-    # Candles: Heikin-Ashi or regular line
+    # Candles: default OHLC candlestick, switch to Heikin-Ashi if selected
     if show_ha:
-        candle_color = ["#3b6d11" if ha["ha_close"].iloc[i] >= ha["ha_open"].iloc[i] else "#a32d2d"
-                        for i in range(len(ha))]
         fig.add_trace(go.Candlestick(
             x=ha["time"], open=ha["ha_open"], high=ha["ha_high"],
             low=ha["ha_low"], close=ha["ha_close"],
             name="Heikin-Ashi",
-            increasing_line_color="#3b6d11", increasing_fillcolor="rgba(59,109,17,0.7)",
-            decreasing_line_color="#a32d2d", decreasing_fillcolor="rgba(163,45,45,0.7)",
+            increasing_line_color="#3b6d11", increasing_fillcolor="rgba(59,109,17,0.75)",
+            decreasing_line_color="#a32d2d", decreasing_fillcolor="rgba(163,45,45,0.75)",
         ), row=1, col=1)
     else:
-        fig.add_trace(go.Scatter(
-            x=df["time"], y=df["close"], name="Price",
-            line=dict(color="#185fa5", width=2),
-            hovertemplate="%{x}<br>$%{y:,.4f}<extra></extra>"
+        fig.add_trace(go.Candlestick(
+            x=df["time"], open=df["open"], high=df["high"],
+            low=df["low"], close=df["close"],
+            name="OHLC",
+            increasing_line_color="#3b6d11", increasing_fillcolor="rgba(59,109,17,0.75)",
+            decreasing_line_color="#a32d2d", decreasing_fillcolor="rgba(163,45,45,0.75)",
         ), row=1, col=1)
 
     fig.add_trace(go.Scatter(x=df["time"], y=ema20, name="EMA 20",
@@ -521,10 +521,13 @@ def build_main_chart(df, ha, ema20, ema50, sr_channels, fib_levels,
 
     buy_mask  = (rsi < 38) | ((macd_hist > 0) & (macd_hist.shift(1) <= 0)) | ((stoch_k < 20) & (stoch_k > stoch_d))
     sell_mask = (rsi > 62) | ((macd_hist < 0) & (macd_hist.shift(1) >= 0)) | ((stoch_k > 80) & (stoch_k < stoch_d))
-    fig.add_trace(go.Scatter(x=df["time"][buy_mask], y=df["close"][buy_mask], mode="markers",
-                             name="Buy", marker=dict(symbol="triangle-up", size=9, color="#3b6d11")), row=1, col=1)
-    fig.add_trace(go.Scatter(x=df["time"][sell_mask], y=df["close"][sell_mask], mode="markers",
-                             name="Sell", marker=dict(symbol="triangle-down", size=9, color="#a32d2d")), row=1, col=1)
+    # Place triangles below candle low / above candle high for clarity
+    buy_y  = df["low"][buy_mask]  * 0.9985
+    sell_y = df["high"][sell_mask] * 1.0015
+    fig.add_trace(go.Scatter(x=df["time"][buy_mask], y=buy_y, mode="markers",
+                             name="Buy", marker=dict(symbol="triangle-up", size=10, color="#3b6d11")), row=1, col=1)
+    fig.add_trace(go.Scatter(x=df["time"][sell_mask], y=sell_y, mode="markers",
+                             name="Sell", marker=dict(symbol="triangle-down", size=10, color="#a32d2d")), row=1, col=1)
 
     # Row 2: RSI + StochRSI
     fig.add_trace(go.Scatter(x=df["time"], y=rsi, name="RSI",
@@ -795,7 +798,7 @@ with st.sidebar:
 
     st.markdown("---")
     st.markdown("**Tampilan chart**")
-    show_ha       = st.checkbox("Heikin-Ashi candles", value=False)
+    show_ha       = st.checkbox("Heikin-Ashi (ganti dari candle OHLC)", value=False)
     show_fib      = st.checkbox("Fibonacci Retracement", value=True)
     show_sr       = st.checkbox("Support / Resistance", value=True)
     show_ema      = st.checkbox("EMA 20 / 50", value=True)
@@ -818,8 +821,6 @@ with st.sidebar:
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
 
-st.markdown(f"## 📈 Crypto Technical Dashboard — {coin_label}")
-
 with st.spinner("Mengambil data dari CoinGecko..."):
     try:
         df     = fetch_ohlc(coin_id, days)
@@ -839,6 +840,23 @@ high_24h  = md.get("high_24h", {}).get("usd", df["high"].max())
 low_24h   = md.get("low_24h", {}).get("usd", df["low"].min())
 mkt_cap   = md.get("market_cap", {}).get("usd", 0)
 vol_24h   = md.get("total_volume", {}).get("usd", 0)
+
+# ── Title (after data so pct_24h is available)
+pct_sign  = "+" if pct_24h >= 0 else ""
+pct_color = "#3b6d11" if pct_24h >= 0 else "#a32d2d"
+st.markdown(f"""
+<div style="display:flex;align-items:center;gap:14px;padding:8px 0 14px 0;border-bottom:1.5px solid var(--color-border-secondary);margin-bottom:14px;flex-wrap:wrap">
+  <span style="font-size:22px;font-weight:500;color:var(--color-text-primary);letter-spacing:-0.5px;white-space:nowrap">
+    📈 Crypto Technical Dashboard
+  </span>
+  <span style="font-size:16px;font-weight:500;color:var(--color-text-secondary);white-space:nowrap">{coin_label}</span>
+  <span style="font-size:20px;font-weight:500;color:{pct_color};white-space:nowrap">${cur_price:,.2f}</span>
+  <span style="font-size:13px;font-weight:500;padding:3px 12px;border-radius:5px;background:{'#eaf3de' if pct_24h>=0 else '#fcebeb'};color:{pct_color};white-space:nowrap">
+    {pct_sign}{pct_24h:.2f}%
+  </span>
+  <span style="font-size:11px;color:var(--color-text-tertiary);margin-left:auto;white-space:nowrap">{days_label} · {datetime.now().strftime('%H:%M:%S')}</span>
+</div>
+""", unsafe_allow_html=True)
 
 # Compute all indicators
 ema20      = calc_ema(df["close"], 20)
