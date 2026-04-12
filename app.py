@@ -215,6 +215,150 @@ def fetch_fear_greed():
         return []
 
 
+@st.cache_data(ttl=300)
+def fetch_volume_chart(coin_id: str, days: int):
+    url = f"{CG_BASE}/coins/{coin_id}/market_chart"
+    r = requests.get(url, params={"vs_currency": "usd", "days": days}, timeout=15)
+    r.raise_for_status()
+    data = r.json()
+    prices  = pd.DataFrame(data["prices"],  columns=["ts", "price"])
+    volumes = pd.DataFrame(data["total_volumes"], columns=["ts", "volume"])
+    prices["date"]  = pd.to_datetime(prices["ts"],  unit="ms").dt.date
+    volumes["date"] = pd.to_datetime(volumes["ts"], unit="ms").dt.date
+    daily_p = prices.groupby("date")["price"].agg(["first","max","min","last"]).reset_index()
+    daily_p.columns = ["date","open","high","low","close"]
+    daily_v = volumes.groupby("date")["volume"].sum().reset_index()
+    merged  = daily_p.merge(daily_v, on="date")
+    return merged
+
+
+def calc_vpvr(df_vol: pd.DataFrame, n_buckets: int = 24):
+    hi = df_vol["high"].max()
+    lo = df_vol["low"].min()
+    bucket_size = (hi - lo) / n_buckets
+    buckets = []
+    for i in range(n_buckets):
+        b_lo = lo + i * bucket_size
+        b_hi = b_lo + bucket_size
+        b_mid = (b_lo + b_hi) / 2
+        vol = 0
+        for _, row in df_vol.iterrows():
+            overlap = max(0, min(row["high"], b_hi) - max(row["low"], b_lo))
+            rng = row["high"] - row["low"]
+            if rng > 0:
+                vol += row["volume"] * (overlap / rng)
+        buckets.append({"price": b_mid, "lo": b_lo, "hi": b_hi, "volume": vol})
+
+    total_vol = sum(b["volume"] for b in buckets)
+    for b in buckets:
+        b["vol_pct"] = b["volume"] / total_vol if total_vol > 0 else 0
+
+    poc = max(buckets, key=lambda x: x["volume"])
+
+    sorted_by_vol = sorted(buckets, key=lambda x: -x["volume"])
+    va_vol, va_buckets = 0, []
+    for b in sorted_by_vol:
+        va_vol += b["volume"]
+        va_buckets.append(b)
+        if va_vol >= total_vol * 0.70:
+            break
+
+    vah_price = max(b["hi"]  for b in va_buckets)
+    val_price = min(b["lo"]  for b in va_buckets)
+
+    sorted_by_price = sorted(buckets, key=lambda x: x["price"])
+    hvn_threshold   = np.percentile([b["volume"] for b in buckets], 70)
+    lvn_threshold   = np.percentile([b["volume"] for b in buckets], 30)
+    hvn_zones = [b for b in sorted_by_price if b["volume"] >= hvn_threshold
+                 and abs(b["price"] - poc["price"]) / poc["price"] > 0.005]
+    lvn_zones = [b for b in sorted_by_price if b["volume"] <= lvn_threshold
+                 and abs(b["price"] - poc["price"]) / poc["price"] > 0.005]
+
+    return {
+        "buckets":  sorted_by_price,
+        "poc":      poc["price"],
+        "vah":      vah_price,
+        "val":      val_price,
+        "hvn_list": hvn_zones,
+        "lvn_list": lvn_zones,
+        "max_vol":  max(b["volume"] for b in buckets),
+        "bucket_size": bucket_size,
+    }
+
+
+def get_vpvr_signals(vpvr: dict, cur_price: float):
+    poc  = vpvr["poc"]
+    vah  = vpvr["vah"]
+    val  = vpvr["val"]
+    hvns = sorted(vpvr["hvn_list"], key=lambda x: x["price"])
+    lvns = sorted(vpvr["lvn_list"], key=lambda x: x["price"])
+
+    # Nearest HVN above and below current price
+    hvn_above = [h for h in hvns if h["price"] > cur_price]
+    hvn_below = [h for h in hvns if h["price"] < cur_price]
+    nearest_hvn_above = hvn_above[0]["price"]  if hvn_above else vah
+    nearest_hvn_below = hvn_below[-1]["price"] if hvn_below else val
+
+    # Nearest LVN above and below
+    lvn_above = [l for l in lvns if l["price"] > cur_price]
+    lvn_below = [l for l in lvns if l["price"] < cur_price]
+    nearest_lvn_above = lvn_above[0]["price"]  if lvn_above else (cur_price + (vah-cur_price)*0.5)
+    nearest_lvn_below = lvn_below[-1]["price"] if lvn_below else (cur_price - (cur_price-val)*0.5)
+
+    above_poc = cur_price >= poc
+
+    # BUY signal
+    if above_poc:
+        buy_entry   = round(poc * 1.001, 0)
+        buy_reason  = "Retest POC dari atas — zona keseimbangan volume tertinggi"
+        buy_reason_awam = "Harga kembali ke titik di mana paling banyak transaksi pernah terjadi — zona beli favorit para pelaku besar."
+    else:
+        buy_entry   = round(val * 1.001, 0)
+        buy_reason  = "Harga menyentuh VAL — batas bawah Value Area dengan volume tinggi"
+        buy_reason_awam = "Harga sudah turun ke area batas bawah zona 'harga wajar' pasar — historis ini sering menjadi titik balik naik."
+
+    buy_tp1 = round(vah, 0)
+    buy_tp2 = round(nearest_hvn_above if nearest_hvn_above > vah else vah * 1.02, 0)
+    buy_sl  = round(nearest_hvn_below if nearest_hvn_below < buy_entry else val * 0.99, 0)
+    buy_risk   = buy_entry - buy_sl
+    buy_rr_tp1 = round((buy_tp1 - buy_entry) / buy_risk, 2) if buy_risk > 0 else 0
+
+    # SELL signal
+    sell_entry  = round(vah * 0.999, 0)
+    sell_reason = "Harga mencapai VAH — batas atas Value Area, resistance volume tinggi"
+    sell_reason_awam = "Harga menyentuh batas atas zona 'harga wajar' pasar — di sinilah banyak penjual menunggu, dan harga sering berbalik turun."
+    sell_tp1 = round(poc, 0)
+    sell_tp2 = round(val, 0)
+    sell_sl  = round(nearest_hvn_above if nearest_hvn_above > vah else vah * 1.02, 0)
+    sell_risk   = sell_sl - sell_entry
+    sell_rr_tp1 = round((sell_entry - sell_tp1) / sell_risk, 2) if sell_risk > 0 else 0
+
+    # Price position narrative
+    if cur_price > vah:
+        pos_tech  = f"Harga berada DI ATAS Value Area (>{fmt_price(vah)}). Ini adalah zona breakout — pergerakan di atas VAH sering berlanjut cepat karena volume tipis, namun juga berisiko reversal tajam kembali ke dalam Value Area."
+        pos_awam  = f"Harga sudah keluar dari zona 'harga wajar' ke atas. Bayangkan balon yang melayang terlalu tinggi — bisa terus naik, tapi bisa juga tiba-tiba turun kembali. Hati-hati membeli di sini."
+    elif cur_price < val:
+        pos_tech  = f"Harga berada DI BAWAH Value Area (<{fmt_price(val)}). Zona ini bisa menjadi peluang beli agresif jika ada konfirmasi pembalikan, namun juga bisa berlanjut turun jika support VAL gagal."
+        pos_awam  = f"Harga sudah jatuh di bawah zona 'harga wajar'. Ini bisa jadi kesempatan beli yang baik — seperti diskon besar — tapi pastikan ada tanda-tanda harga berhenti turun dulu sebelum masuk."
+    elif cur_price >= poc:
+        pos_tech  = f"Harga berada ANTARA POC ({fmt_price(poc)}) dan VAH ({fmt_price(vah)}). Bias bullish — harga di atas pusat gravitasi volume. Resistance berikutnya adalah VAH."
+        pos_awam  = f"Harga sedang berada di zona sehat di atas titik keseimbangan pasar. Seperti bola yang menggelinding ke atas — momentum masih mendukung kenaikan, tapi VAH di {fmt_price(vah)} adalah tembok berikutnya."
+    else:
+        pos_tech  = f"Harga berada ANTARA VAL ({fmt_price(val)}) dan POC ({fmt_price(poc)}). Pasar dalam fase akumulasi. POC menjadi resistance terdekat yang harus ditembus untuk konfirmasi bullish."
+        pos_awam  = f"Harga berada di zona bawah area 'harga wajar', belum sampai ke titik keseimbangan utama. Pasar masih ragu-ragu. Tunggu harga berhasil menembus {fmt_price(poc)} sebelum mengambil posisi beli."
+
+    return {
+        "buy_entry": buy_entry, "buy_tp1": buy_tp1, "buy_tp2": buy_tp2,
+        "buy_sl": buy_sl, "buy_rr": buy_rr_tp1,
+        "buy_reason": buy_reason, "buy_reason_awam": buy_reason_awam,
+        "sell_entry": sell_entry, "sell_tp1": sell_tp1, "sell_tp2": sell_tp2,
+        "sell_sl": sell_sl, "sell_rr": sell_rr_tp1,
+        "sell_reason": sell_reason, "sell_reason_awam": sell_reason_awam,
+        "pos_tech": pos_tech, "pos_awam": pos_awam,
+        "above_poc": above_poc,
+    }
+
+
 # ── INDICATORS ────────────────────────────────────────────────────────────────
 
 def calc_ema(series: pd.Series, period: int) -> pd.Series:
@@ -1090,6 +1234,7 @@ with st.sidebar:
     show_mc       = st.checkbox("Simulasi Monte Carlo", value=True)
     show_narasi   = st.checkbox("Narasi Teknikal (300 kata)", value=True)
     show_awam     = st.checkbox("Narasi untuk Awam", value=True)
+    show_vpvr     = st.checkbox("VPVR — Volume Profile", value=True)
 
     st.markdown("---")
     auto_refresh = st.checkbox("Auto-refresh (60 dtk)", value=False)
@@ -1829,6 +1974,188 @@ if show_awam:
     )
 
     st.html(awam_html)
+
+# ── VPVR Panel (30 hari dan 90 hari saja)
+if show_vpvr and days in [30, 90]:
+    st.markdown("---")
+    st.markdown("##### Volume Profile Visible Range (VPVR)")
+    st.caption(
+        f"Peta likuiditas pasar {coin_label} berdasarkan distribusi volume {days_label} terakhir. "
+        "Sinyal beli/jual murni dari struktur volume — independen dari indikator teknikal lainnya. "
+        "Aktif hanya untuk periode 30 hari dan 90 hari."
+    )
+
+    with st.spinner("Mengambil data volume harian dari CoinGecko..."):
+        try:
+            df_vol = fetch_volume_chart(coin_id, days)
+            vpvr   = calc_vpvr(df_vol, n_buckets=24)
+            vsig   = get_vpvr_signals(vpvr, cur_price)
+        except Exception as e:
+            st.warning(f"Gagal memuat data VPVR: {e}")
+            df_vol = None
+
+    if df_vol is not None:
+        poc  = vpvr["poc"]
+        vah  = vpvr["vah"]
+        val  = vpvr["val"]
+        bkts = vpvr["buckets"]
+        mxv  = vpvr["max_vol"]
+
+        fig_vp = make_subplots(
+            rows=1, cols=2,
+            column_widths=[0.72, 0.28],
+            shared_yaxes=True,
+            horizontal_spacing=0.01,
+            subplot_titles=["Harga + Volume Profile", "Distribusi Volume per Level Harga"]
+        )
+
+        # Harga
+        fig_vp.add_trace(go.Scatter(
+            x=df_vol["date"].astype(str), y=df_vol["close"],
+            name="Harga", line=dict(color="#185fa5", width=2),
+            hovertemplate="%{x}<br>$%{y:,.2f}<extra></extra>"
+        ), row=1, col=1)
+
+        # Horizontal lines
+        for price_level, color, label in [
+            (vah, "#a32d2d", f"VAH {fmt_price(vah)}"),
+            (poc, "#534ab7", f"POC {fmt_price(poc)}"),
+            (val, "#3b6d11", f"VAL {fmt_price(val)}"),
+        ]:
+            fig_vp.add_hline(
+                y=price_level, line_color=color, line_dash="dot", line_width=1.5,
+                annotation_text=label, annotation_position="right",
+                annotation_font_size=9, annotation_font_color=color,
+                row=1, col=1
+            )
+
+        # HVN / LVN zones
+        for h in vpvr["hvn_list"][:3]:
+            fig_vp.add_hrect(y0=h["lo"], y1=h["hi"],
+                fillcolor="rgba(24,95,165,0.08)",
+                line_color="rgba(24,95,165,0.3)", line_width=0.5, row=1, col=1)
+        for l in vpvr["lvn_list"][:3]:
+            fig_vp.add_hrect(y0=l["lo"], y1=l["hi"],
+                fillcolor="rgba(136,135,128,0.06)",
+                line_color="rgba(136,135,128,0.2)", line_width=0.5, row=1, col=1)
+
+        # VPVR histogram (horizontal bars)
+        bar_colors = []
+        for b in bkts:
+            if abs(b["price"] - poc) < vpvr["bucket_size"]:
+                bar_colors.append("rgba(83,74,183,0.75)")
+            elif b["price"] > poc:
+                bar_colors.append("rgba(163,45,45,0.55)")
+            else:
+                bar_colors.append("rgba(59,109,17,0.55)")
+
+        vol_pcts = [b["vol_pct"] * 100 for b in bkts]
+        prices_mid = [b["price"] for b in bkts]
+
+        fig_vp.add_trace(go.Bar(
+            x=vol_pcts,
+            y=prices_mid,
+            orientation="h",
+            name="Volume %",
+            marker_color=bar_colors,
+            hovertemplate="$%{y:,.0f}<br>Volume: %{x:.1f}%<extra></extra>",
+            width=[vpvr["bucket_size"] * 0.85] * len(bkts),
+        ), row=1, col=2)
+
+        fig_vp.update_layout(
+            height=420,
+            margin=dict(l=10, r=90, t=30, b=10),
+            paper_bgcolor="rgba(0,0,0,0)",
+            plot_bgcolor="rgba(248,249,250,0.5)",
+            legend=dict(orientation="h", y=1.05, x=0, font=dict(size=10)),
+            showlegend=False,
+            hovermode="y unified",
+        )
+        fig_vp.update_xaxes(gridcolor="rgba(128,128,128,0.08)", tickfont=dict(size=9))
+        fig_vp.update_yaxes(
+            gridcolor="rgba(128,128,128,0.08)", tickfont=dict(size=9),
+            tickformat="$,.0f"
+        )
+        fig_vp.update_xaxes(ticksuffix="%", row=1, col=2)
+        st.plotly_chart(fig_vp, use_container_width=True)
+
+        # ── Zona tabel
+        dp = 2 if cur_price < 100 else 0
+        zone_rows = []
+        zone_rows.append({"Zona": "VAH (Value Area High)", "Harga": fmt_price(vah),
+                           "Volume": "Tinggi", "Fungsi": "Resistance kuat",
+                           "Sinyal": "Jual / ambil profit"})
+        for i, l in enumerate(sorted(vpvr["lvn_list"], key=lambda x: -x["price"])[:2]):
+            zone_rows.append({"Zona": f"LVN {i+1}", "Harga": fmt_price(l["price"]),
+                               "Volume": "Sangat rendah", "Fungsi": "Zona breakout cepat",
+                               "Sinyal": "Waspadai pergerakan cepat"})
+        zone_rows.append({"Zona": "POC (Point of Control)", "Harga": fmt_price(poc),
+                           "Volume": "Tertinggi", "Fungsi": "Titik keseimbangan",
+                           "Sinyal": "Beli saat retest dari atas"})
+        for i, h in enumerate(sorted(vpvr["hvn_list"], key=lambda x: -x["price"])[:2]):
+            zone_rows.append({"Zona": f"HVN {i+1}", "Harga": fmt_price(h["price"]),
+                               "Volume": "Tinggi", "Fungsi": "Support kuat",
+                               "Sinyal": "Beli di zona ini"})
+        zone_rows.append({"Zona": "VAL (Value Area Low)", "Harga": fmt_price(val),
+                           "Volume": "Tinggi", "Fungsi": "Support sangat kuat",
+                           "Sinyal": "Beli agresif / pertahanan terakhir"})
+        st.dataframe(pd.DataFrame(zone_rows), use_container_width=True, hide_index=True)
+
+        # ── Posisi harga + narasi
+        st.markdown("---")
+        pos_color = "#27500a" if vsig["above_poc"] else "#791f1f"
+        st.markdown(f"""
+<div style="background:#f8f9fa;border-radius:8px;padding:12px 16px;margin-bottom:10px;border-left:3px solid {pos_color};font-family:sans-serif">
+  <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#888;margin-bottom:6px">Posisi harga saat ini</div>
+  <div style="font-size:12px;color:#111;line-height:1.7;margin-bottom:8px"><strong>Teknikal:</strong> {vsig['pos_tech']}</div>
+  <div style="font-size:12px;color:#555;line-height:1.7"><strong>Untuk awam:</strong> {vsig['pos_awam']}</div>
+</div>
+""", unsafe_allow_html=True)
+
+        # ── Sinyal beli/jual
+        sc1, sc2 = st.columns(2)
+
+        with sc1:
+            buy_pct_tp1 = f"{(vsig['buy_tp1'] - vsig['buy_entry']) / vsig['buy_entry'] * 100:+.1f}%"
+            buy_pct_tp2 = f"{(vsig['buy_tp2'] - vsig['buy_entry']) / vsig['buy_entry'] * 100:+.1f}%"
+            buy_pct_sl  = f"{(vsig['buy_sl']  - vsig['buy_entry']) / vsig['buy_entry'] * 100:+.1f}%"
+            st.markdown(f"""
+<div style="background:#eaf3de;border:1px solid #3b6d11;border-radius:10px;padding:16px;font-family:sans-serif">
+  <div style="font-size:10px;font-weight:700;color:#27500a;letter-spacing:.5px;margin-bottom:8px">SINYAL BELI — VPVR</div>
+  <div style="font-size:20px;font-weight:800;color:#27500a;letter-spacing:-0.5px;margin-bottom:2px">{fmt_price(vsig['buy_entry'])}</div>
+  <div style="font-size:11px;color:#5f5e5a;margin-bottom:10px">{vsig['buy_reason']}</div>
+  <div style="font-size:11px;color:#3b6d11;line-height:1.6;margin-bottom:10px;padding:8px;background:rgba(59,109,17,0.08);border-radius:6px"><em>{vsig['buy_reason_awam']}</em></div>
+  <div style="font-size:11px">
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:0.5px solid rgba(59,109,17,0.2)"><span style="color:#888">Target 1 (VAH)</span><span style="font-weight:700;color:#27500a">{fmt_price(vsig['buy_tp1'])} &nbsp;<span style="font-size:10px;background:#c0dd97;color:#27500a;padding:1px 5px;border-radius:3px">{buy_pct_tp1}</span></span></div>
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:0.5px solid rgba(59,109,17,0.2)"><span style="color:#888">Target 2 (HVN atas)</span><span style="font-weight:700;color:#27500a">{fmt_price(vsig['buy_tp2'])} &nbsp;<span style="font-size:10px;background:#c0dd97;color:#27500a;padding:1px 5px;border-radius:3px">{buy_pct_tp2}</span></span></div>
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:0.5px solid rgba(59,109,17,0.2)"><span style="color:#a32d2d">Stop Loss</span><span style="font-weight:700;color:#a32d2d">{fmt_price(vsig['buy_sl'])} &nbsp;<span style="font-size:10px;background:#f09595;color:#501313;padding:1px 5px;border-radius:3px">{buy_pct_sl}</span></span></div>
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:0.5px solid rgba(59,109,17,0.2)"><span style="color:#888">R/R (TP1)</span><span style="font-weight:700;color:#111">{vsig['buy_rr']} : 1</span></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+        with sc2:
+            sell_pct_tp1 = f"{(vsig['sell_tp1'] - vsig['sell_entry']) / vsig['sell_entry'] * 100:+.1f}%"
+            sell_pct_tp2 = f"{(vsig['sell_tp2'] - vsig['sell_entry']) / vsig['sell_entry'] * 100:+.1f}%"
+            sell_pct_sl  = f"{(vsig['sell_sl']  - vsig['sell_entry']) / vsig['sell_entry'] * 100:+.1f}%"
+            st.markdown(f"""
+<div style="background:#fcebeb;border:1px solid #a32d2d;border-radius:10px;padding:16px;font-family:sans-serif">
+  <div style="font-size:10px;font-weight:700;color:#791f1f;letter-spacing:.5px;margin-bottom:8px">SINYAL JUAL — VPVR</div>
+  <div style="font-size:20px;font-weight:800;color:#791f1f;letter-spacing:-0.5px;margin-bottom:2px">{fmt_price(vsig['sell_entry'])}</div>
+  <div style="font-size:11px;color:#5f5e5a;margin-bottom:10px">{vsig['sell_reason']}</div>
+  <div style="font-size:11px;color:#a32d2d;line-height:1.6;margin-bottom:10px;padding:8px;background:rgba(163,45,45,0.08);border-radius:6px"><em>{vsig['sell_reason_awam']}</em></div>
+  <div style="font-size:11px">
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:0.5px solid rgba(163,45,45,0.2)"><span style="color:#888">Target 1 (POC)</span><span style="font-weight:700;color:#27500a">{fmt_price(vsig['sell_tp1'])} &nbsp;<span style="font-size:10px;background:#c0dd97;color:#27500a;padding:1px 5px;border-radius:3px">{sell_pct_tp1}</span></span></div>
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:0.5px solid rgba(163,45,45,0.2)"><span style="color:#888">Target 2 (VAL)</span><span style="font-weight:700;color:#27500a">{fmt_price(vsig['sell_tp2'])} &nbsp;<span style="font-size:10px;background:#c0dd97;color:#27500a;padding:1px 5px;border-radius:3px">{sell_pct_tp2}</span></span></div>
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:0.5px solid rgba(163,45,45,0.2)"><span style="color:#3b6d11">Stop Loss</span><span style="font-weight:700;color:#3b6d11">{fmt_price(vsig['sell_sl'])} &nbsp;<span style="font-size:10px;background:#c0dd97;color:#27500a;padding:1px 5px;border-radius:3px">{sell_pct_sl}</span></span></div>
+    <div style="display:flex;justify-content:space-between;padding:4px 0;border-top:0.5px solid rgba(163,45,45,0.2)"><span style="color:#888">R/R (TP1)</span><span style="font-weight:700;color:#111">{vsig['sell_rr']} : 1</span></div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+elif show_vpvr and days not in [30, 90]:
+    st.markdown("---")
+    st.info("VPVR aktif hanya untuk periode **30 hari** dan **90 hari**. Pilih periode tersebut di sidebar untuk melihat Volume Profile.")
 
 if auto_refresh:
     time.sleep(60)
