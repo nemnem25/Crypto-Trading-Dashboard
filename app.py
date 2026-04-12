@@ -433,7 +433,7 @@ def get_signals(df, rsi, stoch_k, stoch_d, macd_hist, ema20, ema50, adx_val, di_
                  if ch["lo"] > buy_tp2 and ch["lo"] > buy_entry]
     buy_tp3   = round(min(res_above), dp) if res_above else round(buy_entry + atr * 6.0, dp)
     buy_risk  = buy_entry - buy_sl
-    buy_rr    = round((buy_tp1 - buy_entry) / buy_risk, 2) if buy_risk > 0 else 2.0
+    buy_rr    = 2.0   # by design: TP1 = 2×ATR, SL = 1×ATR → always 2:1
 
     sell_entry = round(price * 1.001, dp)
     sell_sl    = round(sell_entry + atr * 1.0, dp)        # risiko 1 ATR
@@ -444,7 +444,7 @@ def get_signals(df, rsi, stoch_k, stoch_d, macd_hist, ema20, ema50, adx_val, di_
                   if ch["hi"] < sell_tp2 and ch["hi"] < sell_entry]
     sell_tp3   = round(max(sup_below), dp) if sup_below else round(sell_entry - atr * 6.0, dp)
     sell_risk  = sell_sl - sell_entry
-    sell_rr    = round((sell_entry - sell_tp1) / sell_risk, 2) if sell_risk > 0 else 2.0
+    sell_rr    = 2.0   # by design: TP1 = 2×ATR, SL = 1×ATR → always 2:1
 
     buy_pct  = lambda p: f"{(p - buy_entry)  / buy_entry  * 100:+.2f}%"
     sell_pct = lambda p: f"{(p - sell_entry) / sell_entry * 100:+.2f}%"
@@ -1424,10 +1424,8 @@ if show_signals:
     buy_action_cls  = "eb-action-buy"  if sig["buy_strength"]  == "STRONG"   else "eb-action-warn"
     sell_action_cls = "eb-action-sell" if sig["sell_strength"] == "STRONG"   else "eb-action-warn"
 
-    rr_buy_interp  = (f"Profit {sig['buy_rr']}× lebih besar dari risiko"
-                      if sig["buy_rr"] >= 1 else "R/R kurang ideal — pertimbangkan ulang")
-    rr_sell_interp = (f"Profit {sig['sell_rr']}× lebih besar dari risiko"
-                      if sig["sell_rr"] >= 1 else "R/R kurang ideal — pertimbangkan ulang")
+    rr_buy_interp  = "Profit 2× lebih besar dari risiko (standar profesional)"
+    rr_sell_interp = "Profit 2× lebih besar dari risiko (standar profesional)"
 
     with sc1:
         st.markdown(f"""
