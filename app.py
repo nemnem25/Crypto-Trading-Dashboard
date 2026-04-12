@@ -170,7 +170,7 @@ LOGO_SVG = """
 </svg>
 """
 
-APP_VERSION = "10.0"   # ← ubah di sini setiap kali update versi
+APP_VERSION = "11.0"   # ← ubah di sini setiap kali update versi
 
 DAYS_MAP = {
     "1 hari":  1,
