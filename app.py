@@ -1751,68 +1751,86 @@ if show_awam:
 
     info_items = [
         ("Tren saat ini",       aw["trend_str"].capitalize(),              "EMA 20/50"),
-        ("Kekuatan tren",       f"ADX {aw['adx']}",                       "Kuat" if aw['adx']>25 else "Lemah"),
-        ("Momentum",            f"RSI {aw['rsi']}",                       "Oversold" if aw['rsi']<35 else "Overbought" if aw['rsi']>65 else "Normal"),
-        ("Sentimen pasar",      f"F&G {_fg_now}/100" if _fg_now else "—", ("Extreme Fear" if _fg_now<=24 else "Greed" if _fg_now>=60 else "Neutral") if _fg_now else "—"),
-        ("Peluang naik 7 hari", f"{_mc_prob_7d:.0f}%" if _mc_prob_7d else "—", "Monte Carlo"),
+        ("Kekuatan tren",       "ADX " + str(aw['adx']),                  "Kuat" if aw['adx']>25 else "Lemah"),
+        ("Momentum",            "RSI " + str(aw['rsi']),                  "Oversold" if aw['rsi']<35 else "Overbought" if aw['rsi']>65 else "Normal"),
+        ("Sentimen pasar",      ("F&amp;G " + str(_fg_now) + "/100") if _fg_now else "—",
+                                ("Extreme Fear" if _fg_now<=24 else "Greed" if _fg_now>=60 else "Neutral") if _fg_now else "—"),
+        ("Peluang naik 7 hari", (str(round(_mc_prob_7d)) + "%") if _mc_prob_7d else "—", "Monte Carlo"),
         ("Volatilitas harian",  fmt_price(round(sig['atr'], 2 if cur_price<100 else 0)), "ATR 14"),
     ]
 
-    info_html = "".join([f"""
-      <div style="background:#f8f8f8;border-radius:8px;padding:10px 12px">
-        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#999;margin-bottom:3px;font-family:sans-serif">{lbl}</div>
-        <div style="font-size:13px;font-weight:700;color:#111;font-family:sans-serif">{val}</div>
-        <div style="font-size:10px;color:#888;margin-top:1px;font-family:sans-serif">{sub}</div>
-      </div>""" for lbl, val, sub in info_items])
+    # Build info grid as a clean string (no nested f-strings)
+    info_divs = ""
+    for lbl, val, sub in info_items:
+        info_divs += (
+            '<div style="background:#f8f8f8;border-radius:8px;padding:10px 12px">'
+            '<div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;'
+            'color:#999;margin-bottom:3px;font-family:sans-serif">' + lbl + '</div>'
+            '<div style="font-size:13px;font-weight:700;color:#111;font-family:sans-serif">' + val + '</div>'
+            '<div style="font-size:10px;color:#888;margin-top:1px;font-family:sans-serif">' + sub + '</div>'
+            '</div>'
+        )
 
-    st.markdown(f"""
-<div style="border-radius:12px;overflow:hidden;border:1px solid #e0e0e0;font-family:sans-serif">
+    tp_color  = "#27500a" if is_bull_aw else "#791f1f"
+    sl_color  = "#791f1f" if is_bull_aw else "#27500a"
+    n_ind     = str(len(sig['all_indicators']))
+    conf_w    = str(aw['conf']) + "%"
 
-  <div style="padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;background:{hero_bg}">
-    <div style="display:flex;align-items:center;gap:14px">
-      <div style="width:50px;height:50px;border-radius:50%;background:{aw['bar_color']};display:flex;align-items:center;justify-content:center;flex-shrink:0">
-        {icon_svg}
-      </div>
-      <div>
-        <div style="font-size:22px;font-weight:800;color:{aw['bias_color']};letter-spacing:-0.5px;line-height:1.1">Sinyal {aw['bias']}</div>
-        <div style="font-size:12px;color:#5f5e5a;margin-top:3px;font-weight:500">Berdasarkan analisis {len(sig['all_indicators'])} indikator teknikal</div>
-      </div>
-    </div>
-    <div style="text-align:right">
-      <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Kepercayaan sinyal</div>
-      <div style="width:120px;height:8px;background:rgba(0,0,0,.1);border-radius:4px;overflow:hidden;margin-left:auto">
-        <div style="height:100%;width:{aw['conf']}%;background:{aw['bar_color']};border-radius:4px"></div>
-      </div>
-      <div style="font-size:16px;font-weight:700;color:{aw['bias_color']};margin-top:4px">{aw['conf']}% &nbsp;<span style="font-size:11px;font-weight:500;color:#888">{aw['conf_lbl']}</span></div>
-    </div>
-  </div>
+    awam_html = (
+        '<div style="border-radius:12px;overflow:hidden;border:1px solid #e0e0e0;font-family:sans-serif">'
 
-  <div style="padding:18px 22px;background:#fff">
-    <p style="font-size:13px;line-height:1.85;color:#333;margin-bottom:16px">{aw['summary']}</p>
-    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px">
-      {info_html}
-    </div>
-  </div>
+        # Hero
+        '<div style="padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;background:' + hero_bg + '">'
+          '<div style="display:flex;align-items:center;gap:14px">'
+            '<div style="width:50px;height:50px;border-radius:50%;background:' + aw['bar_color'] + ';display:flex;align-items:center;justify-content:center;flex-shrink:0">'
+              + icon_svg +
+            '</div>'
+            '<div>'
+              '<div style="font-size:22px;font-weight:800;color:' + aw['bias_color'] + ';letter-spacing:-0.5px;line-height:1.1">Sinyal ' + aw['bias'] + '</div>'
+              '<div style="font-size:12px;color:#5f5e5a;margin-top:3px;font-weight:500">Berdasarkan analisis ' + n_ind + ' indikator teknikal</div>'
+            '</div>'
+          '</div>'
+          '<div style="text-align:right">'
+            '<div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Kepercayaan sinyal</div>'
+            '<div style="width:120px;height:8px;background:rgba(0,0,0,.1);border-radius:4px;overflow:hidden;margin-left:auto">'
+              '<div style="height:100%;width:' + conf_w + ';background:' + aw['bar_color'] + ';border-radius:4px"></div>'
+            '</div>'
+            '<div style="font-size:16px;font-weight:700;color:' + aw['bias_color'] + ';margin-top:4px">' + conf_w + ' <span style="font-size:11px;font-weight:500;color:#888">' + aw['conf_lbl'] + '</span></div>'
+          '</div>'
+        '</div>'
 
-  <div style="padding:14px 22px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;background:{strip_bg};border-top:1px solid #f0f0f0">
-    <div>
-      <div style="font-size:13px;font-weight:700;color:{aw['bias_color']}">{aw['action_main']}</div>
-      <div style="font-size:11px;color:#888;margin-top:2px">{aw['action_sub']}</div>
-    </div>
-    <div style="display:flex;gap:14px;flex-wrap:wrap">
-      <div style="text-align:center"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#aaa;display:block;margin-bottom:2px">{entry_lbl}</span><span style="font-size:12px;font-weight:700;color:#111">{entry_p}</span></div>
-      <div style="text-align:center"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#aaa;display:block;margin-bottom:2px">Target 1</span><span style="font-size:12px;font-weight:700;color:{'#27500a' if is_bull_aw else '#791f1f'}">{tp1_p}</span></div>
-      <div style="text-align:center"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#aaa;display:block;margin-bottom:2px">Target 2</span><span style="font-size:12px;font-weight:700;color:{'#27500a' if is_bull_aw else '#791f1f'}">{tp2_p}</span></div>
-      <div style="text-align:center"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#aaa;display:block;margin-bottom:2px">Stop Loss</span><span style="font-size:12px;font-weight:700;color:{'#791f1f' if is_bull_aw else '#27500a'}">{sl_p}</span></div>
-    </div>
-  </div>
+        # Body
+        '<div style="padding:18px 22px;background:#fff">'
+          '<p style="font-size:13px;line-height:1.85;color:#333;margin-bottom:16px">' + aw['summary'] + '</p>'
+          '<div style="display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:4px">'
+            + info_divs +
+          '</div>'
+        '</div>'
 
-  <div style="padding:9px 22px;background:#f9f9f9;border-top:1px solid #f0f0f0">
-    <span style="font-size:10px;color:#bbb;line-height:1.5">Informasi ini bersifat edukatif dan bukan saran investasi. Keputusan trading sepenuhnya ada di tangan Anda. Pasar kripto sangat volatil dan nilai investasi dapat turun secara signifikan.</span>
-  </div>
+        # Action strip
+        '<div style="padding:14px 22px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;background:' + strip_bg + ';border-top:1px solid #f0f0f0">'
+          '<div>'
+            '<div style="font-size:13px;font-weight:700;color:' + aw['bias_color'] + '">' + aw['action_main'] + '</div>'
+            '<div style="font-size:11px;color:#888;margin-top:2px">' + aw['action_sub'] + '</div>'
+          '</div>'
+          '<div style="display:flex;gap:14px;flex-wrap:wrap">'
+            '<div style="text-align:center"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#aaa;display:block;margin-bottom:2px">' + entry_lbl + '</span><span style="font-size:12px;font-weight:700;color:#111">' + entry_p + '</span></div>'
+            '<div style="text-align:center"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#aaa;display:block;margin-bottom:2px">Target 1</span><span style="font-size:12px;font-weight:700;color:' + tp_color + '">' + tp1_p + '</span></div>'
+            '<div style="text-align:center"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#aaa;display:block;margin-bottom:2px">Target 2</span><span style="font-size:12px;font-weight:700;color:' + tp_color + '">' + tp2_p + '</span></div>'
+            '<div style="text-align:center"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#aaa;display:block;margin-bottom:2px">Stop Loss</span><span style="font-size:12px;font-weight:700;color:' + sl_color + '">' + sl_p + '</span></div>'
+          '</div>'
+        '</div>'
 
-</div>
-""", unsafe_allow_html=True)
+        # Disclaimer
+        '<div style="padding:9px 22px;background:#f9f9f9;border-top:1px solid #f0f0f0">'
+          '<span style="font-size:10px;color:#bbb;line-height:1.5">Informasi ini bersifat edukatif dan bukan saran investasi. '
+          'Keputusan trading sepenuhnya ada di tangan Anda. Pasar kripto sangat volatil dan nilai investasi dapat turun secara signifikan.</span>'
+        '</div>'
+
+        '</div>'
+    )
+
+    st.html(awam_html)
 
 if auto_refresh:
     time.sleep(60)
