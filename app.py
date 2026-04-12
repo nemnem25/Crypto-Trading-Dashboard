@@ -16,7 +16,7 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-    .block-container { padding-top: 1rem; padding-bottom: 0rem; }
+    .block-container { padding-top: 0.5rem !important; padding-bottom: 0rem; }
     .fg-extreme-fear  { background:#fcebeb; border-radius:8px; padding:8px 12px; text-align:center; }
     .fg-fear          { background:#faeeda; border-radius:8px; padding:8px 12px; text-align:center; }
     .fg-neutral       { background:#f1efe8; border-radius:8px; padding:8px 12px; text-align:center; }
@@ -843,18 +843,45 @@ vol_24h   = md.get("total_volume", {}).get("usd", 0)
 
 # ── Title (after data so pct_24h is available)
 pct_sign  = "+" if pct_24h >= 0 else ""
-pct_color = "#3b6d11" if pct_24h >= 0 else "#a32d2d"
+pct_bg    = "#eaf3de" if pct_24h >= 0 else "#fcebeb"
+pct_color = "#27500a" if pct_24h >= 0 else "#791f1f"
 st.markdown(f"""
-<div style="display:flex;align-items:center;gap:14px;padding:8px 0 14px 0;border-bottom:1.5px solid var(--color-border-secondary);margin-bottom:14px;flex-wrap:wrap">
-  <span style="font-size:22px;font-weight:500;color:var(--color-text-primary);letter-spacing:-0.5px;white-space:nowrap">
-    📈 Crypto Technical Dashboard
-  </span>
-  <span style="font-size:16px;font-weight:500;color:var(--color-text-secondary);white-space:nowrap">{coin_label}</span>
-  <span style="font-size:20px;font-weight:500;color:{pct_color};white-space:nowrap">${cur_price:,.2f}</span>
-  <span style="font-size:13px;font-weight:500;padding:3px 12px;border-radius:5px;background:{'#eaf3de' if pct_24h>=0 else '#fcebeb'};color:{pct_color};white-space:nowrap">
-    {pct_sign}{pct_24h:.2f}%
-  </span>
-  <span style="font-size:11px;color:var(--color-text-tertiary);margin-left:auto;white-space:nowrap">{days_label} · {datetime.now().strftime('%H:%M:%S')}</span>
+<div style="
+    margin: 0 0 20px 0;
+    padding: 14px 20px;
+    border-left: 4px solid {'#3b6d11' if pct_24h >= 0 else '#a32d2d'};
+    background: #f8f9fa;
+    border-radius: 0 8px 8px 0;
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    flex-wrap: wrap;
+">
+  <div>
+    <div style="font-size:11px;font-weight:600;letter-spacing:1px;color:#888;text-transform:uppercase;margin-bottom:2px">
+      Crypto Technical Dashboard
+    </div>
+    <div style="font-size:22px;font-weight:700;color:#111;letter-spacing:-0.5px;line-height:1.2">
+      {coin_label}
+    </div>
+  </div>
+  <div style="display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-left:8px">
+    <span style="font-size:28px;font-weight:700;color:#111;letter-spacing:-1px">
+      ${cur_price:,.2f}
+    </span>
+    <span style="
+        font-size:14px;font-weight:600;
+        padding:4px 12px;border-radius:20px;
+        background:{pct_bg};color:{pct_color};
+        white-space:nowrap
+    ">
+      {pct_sign}{pct_24h:.2f}%
+    </span>
+  </div>
+  <div style="margin-left:auto;text-align:right">
+    <div style="font-size:11px;color:#888;white-space:nowrap">{days_label}</div>
+    <div style="font-size:11px;color:#aaa;white-space:nowrap">{datetime.now().strftime('%H:%M:%S')}</div>
+  </div>
 </div>
 """, unsafe_allow_html=True)
 
