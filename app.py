@@ -17,16 +17,6 @@ st.set_page_config(
 st.markdown("""
 <style>
     .block-container { padding-top: 1rem; padding-bottom: 0rem; }
-    .signal-buy {
-        background: #eaf3de; border: 1px solid #3b6d11;
-        border-radius: 10px; padding: 14px;
-    }
-    .signal-sell {
-        background: #fcebeb; border: 1px solid #a32d2d;
-        border-radius: 10px; padding: 14px;
-    }
-    .sig-title-buy  { color: #3b6d11; font-weight: 600; font-size: 13px; }
-    .sig-title-sell { color: #a32d2d; font-weight: 600; font-size: 13px; }
     .fg-extreme-fear  { background:#fcebeb; border-radius:8px; padding:8px 12px; text-align:center; }
     .fg-fear          { background:#faeeda; border-radius:8px; padding:8px 12px; text-align:center; }
     .fg-neutral       { background:#f1efe8; border-radius:8px; padding:8px 12px; text-align:center; }
@@ -36,6 +26,65 @@ st.markdown("""
     h1 { font-size:1.4rem !important; }
     h2 { font-size:1.1rem !important; }
     h3 { font-size:1.0rem !important; }
+    .eb-card { border-radius:12px; padding:18px; border-width:1px; border-style:solid; font-family:monospace; }
+    .eb-buy  { background:#eaf3de; border-color:#3b6d11; }
+    .eb-sell { background:#fcebeb; border-color:#a32d2d; }
+    .eb-hdr  { display:flex; align-items:center; justify-content:space-between; margin-bottom:12px; }
+    .eb-label-buy  { font-size:10px; font-weight:600; letter-spacing:.7px; color:#27500a; }
+    .eb-label-sell { font-size:10px; font-weight:600; letter-spacing:.7px; color:#791f1f; }
+    .eb-pill-buy  { font-size:10px; font-weight:500; padding:3px 10px; border-radius:20px; background:#3b6d11; color:#eaf3de; }
+    .eb-pill-sell { font-size:10px; font-weight:500; padding:3px 10px; border-radius:20px; background:#a32d2d; color:#fcebeb; }
+    .eb-pill-mod  { font-size:10px; font-weight:500; padding:3px 10px; border-radius:20px; background:#854f0b; color:#faeeda; }
+    .eb-pill-weak { font-size:10px; font-weight:500; padding:3px 10px; border-radius:20px; background:#5f5e5a; color:#f1efe8; }
+    .eb-entry-block { margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid; }
+    .eb-entry-block-buy  { border-color:rgba(59,109,17,.25); }
+    .eb-entry-block-sell { border-color:rgba(163,45,45,.25); }
+    .eb-entry-lbl  { font-size:9px; text-transform:uppercase; letter-spacing:.5px; color:#5f5e5a; margin-bottom:2px; }
+    .eb-price-buy  { font-size:26px; font-weight:600; color:#27500a; letter-spacing:-1px; line-height:1.1; }
+    .eb-price-sell { font-size:26px; font-weight:600; color:#791f1f; letter-spacing:-1px; line-height:1.1; }
+    .eb-price-sub  { font-size:10px; color:#5f5e5a; margin-top:3px; }
+    .eb-ind-block  { margin-bottom:12px; padding-bottom:12px; border-bottom:1px solid; }
+    .eb-ind-block-buy  { border-color:rgba(59,109,17,.25); }
+    .eb-ind-block-sell { border-color:rgba(163,45,45,.25); }
+    .eb-ind-title-buy  { font-size:9px; text-transform:uppercase; letter-spacing:.5px; color:#3b6d11; font-weight:600; margin-bottom:7px; }
+    .eb-ind-title-sell { font-size:9px; text-transform:uppercase; letter-spacing:.5px; color:#a32d2d; font-weight:600; margin-bottom:7px; }
+    .eb-ind-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:5px; }
+    .eb-ind-name { font-size:11px; color:#444441; display:flex; align-items:center; gap:6px; }
+    .eb-dot-on-buy  { width:7px; height:7px; border-radius:50%; background:#3b6d11; flex-shrink:0; }
+    .eb-dot-on-sell { width:7px; height:7px; border-radius:50%; background:#a32d2d; flex-shrink:0; }
+    .eb-dot-off { width:7px; height:7px; border-radius:50%; background:#d3d1c7; flex-shrink:0; }
+    .eb-ind-score-buy  { font-size:11px; font-weight:600; color:#3b6d11; }
+    .eb-ind-score-sell { font-size:11px; font-weight:600; color:#a32d2d; }
+    .eb-ind-score-off  { font-size:11px; color:#b4b2a9; }
+    .eb-levels { margin-bottom:12px; }
+    .eb-lev-title { font-size:9px; text-transform:uppercase; letter-spacing:.5px; color:#888; margin-bottom:8px; font-weight:500; }
+    .eb-ladder { position:relative; padding-left:22px; }
+    .eb-ladder-line-buy  { position:absolute; left:9px; top:8px; bottom:8px; width:2px; background:linear-gradient(to bottom,#3b6d11 0%,#3b6d11 50%,rgba(163,45,45,.4) 100%); }
+    .eb-ladder-line-sell { position:absolute; left:9px; top:8px; bottom:8px; width:2px; background:linear-gradient(to bottom,rgba(59,109,17,.4) 0%,#a32d2d 50%,#a32d2d 100%); }
+    .eb-lev-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:7px; position:relative; }
+    .eb-lev-dot { width:10px; height:10px; border-radius:50%; position:absolute; left:-18px; top:2px; border:2px solid #fff; }
+    .eb-lev-key { font-size:11px; color:#5f5e5a; }
+    .eb-lev-key-entry { font-size:11px; font-weight:600; color:#222; }
+    .eb-lev-right { display:flex; align-items:center; gap:7px; }
+    .eb-lev-price { font-size:12px; font-weight:500; color:#222; }
+    .eb-lev-price-entry { font-size:13px; font-weight:700; }
+    .eb-badge { font-size:9px; padding:2px 6px; border-radius:3px; font-weight:500; }
+    .eb-badge-tp-buy   { background:#c0dd97; color:#27500a; }
+    .eb-badge-tp-sell  { background:#f09595; color:#501313; }
+    .eb-badge-sl-buy   { background:#f09595; color:#501313; }
+    .eb-badge-sl-sell  { background:#c0dd97; color:#27500a; }
+    .eb-badge-entry    { background:#d3d1c7; color:#444441; }
+    .eb-rr-block { display:flex; align-items:center; justify-content:space-between; padding:9px 12px; border-radius:8px; margin-bottom:10px; }
+    .eb-rr-buy   { background:rgba(59,109,17,.12); }
+    .eb-rr-sell  { background:rgba(163,45,45,.12); }
+    .eb-rr-label { font-size:9px; text-transform:uppercase; letter-spacing:.5px; color:#5f5e5a; }
+    .eb-rr-val-buy  { font-size:16px; font-weight:600; color:#27500a; }
+    .eb-rr-val-sell { font-size:16px; font-weight:600; color:#791f1f; }
+    .eb-rr-interp { font-size:10px; color:#5f5e5a; margin-top:2px; }
+    .eb-action-buy    { border-radius:8px; padding:9px 12px; text-align:center; font-size:12px; font-weight:600; background:#3b6d11; color:#eaf3de; }
+    .eb-action-sell   { border-radius:8px; padding:9px 12px; text-align:center; font-size:12px; font-weight:600; background:#a32d2d; color:#fcebeb; }
+    .eb-action-warn   { border-radius:8px; padding:9px 12px; text-align:center; font-size:12px; font-weight:500; background:#f1efe8; color:#444441; border:1px solid #b4b2a9; }
+    .eb-advice { font-size:10px; color:#5f5e5a; text-align:center; margin-top:6px; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -180,31 +229,63 @@ def calc_heikin_ashi(df: pd.DataFrame) -> pd.DataFrame:
     return ha
 
 
-def calc_sr_channels(df: pd.DataFrame, channel_pct: float = 0.5):
+def calc_sr_channels(df: pd.DataFrame):
     highs  = df["high"].values
     lows   = df["low"].values
+    closes = df["close"].values
     n      = len(highs)
-    cwidth = (np.max(highs[-min(200,n):]) - np.min(lows[-min(200,n):])) * channel_pct / 100
-    prd    = max(3, n // 20)
+
+    # Dynamic channel width: 1.5x ATR (last 14 bars)
+    tr_vals = [max(highs[i]-lows[i],
+                   abs(highs[i]-closes[i-1]),
+                   abs(lows[i]-closes[i-1]))
+               for i in range(max(1,n-14), n)]
+    atr14   = np.mean(tr_vals) if tr_vals else closes[-1] * 0.01
+    cwidth  = atr14 * 1.5
+
+    prd = max(3, n // 15)
     pivots = []
     for i in range(prd, n - prd):
-        if highs[i] == np.max(highs[i-prd:i+prd+1]): pivots.append(highs[i])
-        if lows[i]  == np.min(lows[i-prd:i+prd+1]):  pivots.append(lows[i])
+        if highs[i] >= np.max(highs[i-prd:i+prd+1]):
+            pivots.append({"val": highs[i], "idx": i, "type": "high"})
+        if lows[i]  <= np.min(lows[i-prd:i+prd+1]):
+            pivots.append({"val": lows[i],  "idx": i, "type": "low"})
+
     channels, used = [], set()
     for i, p in enumerate(pivots):
         if i in used: continue
-        lo = hi = p; count = 20
+        lo = hi = p["val"]; count = 1; members = [i]
         for j, q in enumerate(pivots):
             if j == i or j in used: continue
-            w = hi - q if q <= hi else q - lo
+            w = hi - q["val"] if q["val"] <= hi else q["val"] - lo
             if w <= cwidth:
-                lo = min(lo, q); hi = max(hi, q); count += 20; used.add(j)
-        touch = sum(1 for k in range(max(0, n-100), n)
-                    if (highs[k] <= hi and highs[k] >= lo) or (lows[k] <= hi and lows[k] >= lo))
-        channels.append({"hi": hi, "lo": lo, "strength": count + touch})
-        used.add(i)
+                lo = min(lo, q["val"]); hi = max(hi, q["val"])
+                count += 1; members.append(j); used.add(j)
+
+        # Touch count: bars where high/low graze the zone
+        touch = sum(1 for k in range(max(0, n-150), n)
+                    if (highs[k] <= hi and highs[k] >= lo) or
+                       (lows[k]  <= hi and lows[k]  >= lo))
+        # Pivot count weighted + touch count
+        strength = count * 10 + touch
+        channels.append({"hi": hi, "lo": lo, "strength": strength,
+                         "pivot_count": count, "touch_count": touch,
+                         "width": hi - lo})
+        for m in members: used.add(m)
+
     channels.sort(key=lambda x: -x["strength"])
-    return channels[:8]
+    # Deduplicate overlapping channels
+    final = []
+    for ch in channels:
+        overlap = any(
+            ch["lo"] < ex["hi"] and ch["hi"] > ex["lo"]
+            for ex in final
+        )
+        if not overlap:
+            final.append(ch)
+        if len(final) >= 8:
+            break
+    return final
 
 
 def calc_fibonacci(df: pd.DataFrame, lookback: int = 60):
@@ -279,18 +360,80 @@ def get_signals(df, rsi, stoch_k, stoch_d, macd_hist, ema20, ema50, adx_val, di_
     sell_sl    = round(sell_entry + atr * 1.2, 2 if price < 100 else 0)
     sell_rr    = round((sell_entry - sell_tp1) / (sell_sl - sell_entry), 2) if (sell_sl - sell_entry) != 0 else 0
 
+    MAX_SCORE = 12
     bs = "STRONG" if buy_score >= 6 else "MODERATE" if buy_score >= 3 else "WEAK"
     ss = "STRONG" if sell_score >= 6 else "MODERATE" if sell_score >= 3 else "WEAK"
+
+    # Full indicator breakdown for display
+    dp = 2 if price < 100 else 0
+    buy_pct  = lambda p: f"{(p - buy_entry)  / buy_entry  * 100:+.2f}%"
+    sell_pct = lambda p: f"{(p - sell_entry) / sell_entry * 100:+.2f}%"
+
+    all_indicators = [
+        ("RSI oversold",       rsi_val < 35,   2),
+        ("RSI low",            35 <= rsi_val < 45, 1),
+        ("StochRSI cross up",  sk < 20 and sk > sd, 2),
+        ("StochRSI oversold",  20 <= sk < 30,  1),
+        ("MACD cross up",      hist_val > 0 and prev_hist <= 0, 2),
+        ("MACD positif",       hist_val > 0 and not (hist_val > 0 and prev_hist <= 0), 1),
+        ("EMA bullish",        e20 > e50,       1),
+        ("ADX trend bullish",  adx > 25 and dip > dim, 2),
+        ("At support",         any(abs(price - ch["lo"]) / price < 0.008 for ch in sr_channels), 2),
+    ]
+    sell_indicators = [
+        ("RSI overbought",     rsi_val > 65,   2),
+        ("RSI high",           55 < rsi_val <= 65, 1),
+        ("StochRSI cross down",sk > 80 and sk < sd, 2),
+        ("StochRSI overbought",70 <= sk <= 80, 1),
+        ("MACD cross down",    hist_val < 0 and prev_hist >= 0, 2),
+        ("MACD negatif",       hist_val < 0 and not (hist_val < 0 and prev_hist >= 0), 1),
+        ("EMA bearish",        e20 <= e50,      1),
+        ("ADX trend bearish",  adx > 25 and dim > dip, 2),
+        ("At resistance",      any(abs(price - ch["hi"]) / price < 0.008 for ch in sr_channels), 2),
+    ]
+
+    # Recommendation text
+    if bs == "STRONG":
+        buy_action = f"Pasang limit buy di {fmt_price(buy_entry)}"
+        buy_advice = "Sinyal kuat — entry layak dieksekusi"
+    elif bs == "MODERATE":
+        buy_action = f"Pertimbangkan limit buy di {fmt_price(buy_entry)}"
+        buy_advice = "Konfirmasi tambahan disarankan sebelum entry"
+    else:
+        buy_action = "Tahan — sinyal lemah"
+        buy_advice = "Tunggu lebih banyak indikator sepakat"
+
+    if ss == "STRONG":
+        sell_action = f"Pasang limit sell di {fmt_price(sell_entry)}"
+        sell_advice = "Sinyal jual kuat — exit atau short layak"
+    elif ss == "MODERATE":
+        sell_action = "Hati-hati — tren utama mungkin masih bullish"
+        sell_advice = "Skip atau kurangi ukuran posisi"
+    else:
+        sell_action = "Abaikan sinyal jual"
+        sell_advice = "Tidak ada konfirmasi yang cukup"
 
     return {
         "price": price, "rsi": rsi_val, "hist": hist_val, "stoch_k": sk, "stoch_d": sd,
         "e20": e20, "e50": e50, "adx": adx, "dip": dip, "dim": dim, "atr": atr,
-        "buy_score": buy_score, "sell_score": sell_score,
+        "buy_score": buy_score, "sell_score": sell_score, "max_score": MAX_SCORE,
         "buy_strength": bs, "sell_strength": ss,
-        "buy_reason":  " + ".join(buy_r[:2])  or "Mixed signals",
-        "sell_reason": " + ".join(sell_r[:2]) or "Mixed signals",
-        "buy_entry": buy_entry, "buy_tp1": buy_tp1, "buy_tp2": buy_tp2, "buy_sl": buy_sl,   "buy_rr": buy_rr,
-        "sell_entry": sell_entry,"sell_tp1":sell_tp1,"sell_tp2":sell_tp2,"sell_sl":sell_sl,"sell_rr":sell_rr,
+        "buy_reason":  " + ".join(buy_r)  or "Mixed signals",
+        "sell_reason": " + ".join(sell_r) or "Mixed signals",
+        "buy_entry": buy_entry, "buy_tp1": buy_tp1, "buy_tp2": buy_tp2,
+        "buy_sl": buy_sl, "buy_rr": buy_rr,
+        "buy_tp1_pct": buy_pct(buy_tp1), "buy_tp2_pct": buy_pct(buy_tp2),
+        "buy_sl_pct":  f"{(buy_sl - buy_entry) / buy_entry * 100:+.2f}%",
+        "buy_entry_pct": f"{(buy_entry - price) / price * 100:+.2f}%",
+        "sell_entry": sell_entry, "sell_tp1": sell_tp1, "sell_tp2": sell_tp2,
+        "sell_sl": sell_sl, "sell_rr": sell_rr,
+        "sell_tp1_pct": sell_pct(sell_tp1), "sell_tp2_pct": sell_pct(sell_tp2),
+        "sell_sl_pct":  f"{(sell_sl - sell_entry) / sell_entry * 100:+.2f}%",
+        "sell_entry_pct": f"{(sell_entry - price) / price * 100:+.2f}%",
+        "all_indicators": all_indicators,
+        "sell_indicators": sell_indicators,
+        "buy_action": buy_action, "buy_advice": buy_advice,
+        "sell_action": sell_action, "sell_advice": sell_advice,
     }
 
 
@@ -593,6 +736,7 @@ atr_series = calc_atr(df)
 obv        = calc_obv(df)
 ha         = calc_heikin_ashi(df)
 sr_channels = calc_sr_channels(df) if show_sr else []
+sig_atr = atr_series.iloc[-1] if not atr_series.empty and not pd.isna(atr_series.iloc[-1]) else cur_price * 0.01
 fib_levels  = calc_fibonacci(df)   if show_fib else []
 sig = get_signals(df, rsi, stoch_k, stoch_d, macd_hist, ema20, ema50,
                   adx_val, di_plus, di_minus, atr_series, sr_channels)
@@ -626,18 +770,86 @@ st.plotly_chart(fig_main, use_container_width=True)
 col_sr, col_fib = st.columns(2)
 with col_sr:
     st.markdown("##### Support / Resistance Channels")
+    st.caption(
+        "Zona harga di mana pasar berulang kali berbalik arah. "
+        "Semakin tinggi Strength, semakin kuat zona tersebut sebagai batas pergerakan."
+    )
     if sr_channels:
         st.plotly_chart(build_sr_chart(sr_channels, cur_price), use_container_width=True)
+
         sr_rows = []
         for i, ch in enumerate(sr_channels[:6]):
             is_res = ch["hi"] > cur_price and ch["lo"] > cur_price
             is_sup = ch["hi"] < cur_price
-            t = "Resistance" if is_res else "Support" if is_sup else "Inside"
-            sr_rows.append({"Tipe": t, "Upper": fmt_price(ch["hi"]),
-                             "Lower": fmt_price(ch["lo"]),
-                             "Mid":   fmt_price((ch["hi"]+ch["lo"])/2),
-                             "Strength": ch["strength"]})
-        st.dataframe(pd.DataFrame(sr_rows), use_container_width=True, hide_index=True)
+            is_in  = not is_res and not is_sup
+
+            tipe   = "🔴 Resistance" if is_res else "🟢 Support" if is_sup else "🟡 Inside"
+            mid    = (ch["hi"] + ch["lo"]) / 2
+            width  = ch["hi"] - ch["lo"]
+            width_pct = width / cur_price * 100
+
+            # Distance from current price to nearest edge of zone
+            if is_res:
+                dist_pct = (ch["lo"] - cur_price) / cur_price * 100
+                dist_lbl = f"+{dist_pct:.2f}%"
+            elif is_sup:
+                dist_pct = (cur_price - ch["hi"]) / cur_price * 100
+                dist_lbl = f"-{dist_pct:.2f}%"
+            else:
+                dist_lbl = "Di dalam zona"
+
+            # Action suggestion
+            if is_res:
+                if (ch["lo"] - cur_price) / cur_price < 0.015:
+                    aksi = "⚠️ Dekat — siap jual / ambil profit"
+                else:
+                    aksi = "Target TP / area jual"
+            elif is_sup:
+                if (cur_price - ch["hi"]) / cur_price < 0.015:
+                    aksi = "⚠️ Dekat — siap beli / tambah posisi"
+                else:
+                    aksi = "Area beli / pasang limit order"
+            else:
+                aksi = "Harga sedang di dalam zona — tunggu breakout"
+
+            # Strength label
+            s = ch["strength"]
+            s_lbl = "🔥 Sangat kuat" if s >= 30 else "💪 Kuat" if s >= 20 else "👌 Sedang"
+
+            sr_rows.append({
+                "No": f"#{i+1}",
+                "Tipe": tipe,
+                "Zona (Low – High)": f"{fmt_price(ch['lo'])} – {fmt_price(ch['hi'])}",
+                "Lebar zona": f"{fmt_price(width)} ({width_pct:.2f}%)",
+                "Jarak dari harga": dist_lbl,
+                "Pivot hits": ch.get("pivot_count", "—"),
+                "Bar sentuh": ch.get("touch_count", "—"),
+                "Strength": f"{s_lbl} ({s})",
+                "Rekomendasi": aksi,
+            })
+
+        df_sr = pd.DataFrame(sr_rows)
+        st.dataframe(df_sr, use_container_width=True, hide_index=True)
+
+        # Callout: nearest support and resistance
+        sup_zones = [ch for ch in sr_channels if ch["hi"] < cur_price]
+        res_zones = [ch for ch in sr_channels if ch["lo"] > cur_price]
+        if sup_zones:
+            nearest_sup = max(sup_zones, key=lambda x: x["hi"])
+            d = (cur_price - nearest_sup["hi"]) / cur_price * 100
+            st.success(
+                f"**Support terdekat:** {fmt_price(nearest_sup['lo'])} – {fmt_price(nearest_sup['hi'])}  "
+                f"| Jarak: {d:.2f}% di bawah harga sekarang  "
+                f"| Pivot hits: {nearest_sup.get('pivot_count','—')}x"
+            )
+        if res_zones:
+            nearest_res = min(res_zones, key=lambda x: x["lo"])
+            d = (nearest_res["lo"] - cur_price) / cur_price * 100
+            st.error(
+                f"**Resistance terdekat:** {fmt_price(nearest_res['lo'])} – {fmt_price(nearest_res['hi'])}  "
+                f"| Jarak: {d:.2f}% di atas harga sekarang  "
+                f"| Pivot hits: {nearest_res.get('pivot_count','—')}x"
+            )
 
 with col_fib:
     st.markdown("##### Fibonacci Retracement")
@@ -655,37 +867,180 @@ st.markdown("---")
 # ── Signals
 if show_signals:
     st.markdown("##### Sinyal Beli & Jual")
+    st.caption("Entry berbasis limit order — pasang di harga yang tertera, bukan market order.")
     sc1, sc2 = st.columns(2)
-    em_buy  = {"STRONG": "🟢", "MODERATE": "🟡", "WEAK": "⚪"}
-    em_sell = {"STRONG": "🔴", "MODERATE": "🟠", "WEAK": "⚪"}
+
+    def pill(strength, side):
+        score = sig["buy_score"] if side == "buy" else sig["sell_score"]
+        mx    = sig["max_score"]
+        label = f"{strength} · score {score}/{mx}"
+        if strength == "STRONG":
+            cls = "eb-pill-buy" if side == "buy" else "eb-pill-sell"
+        elif strength == "MODERATE":
+            cls = "eb-pill-mod"
+        else:
+            cls = "eb-pill-weak"
+        return f'<span class="{cls}">{label}</span>'
+
+    def ind_rows_html(indicators, side):
+        rows = ""
+        dot_on  = "eb-dot-on-buy" if side == "buy" else "eb-dot-on-sell"
+        sc_on   = "eb-ind-score-buy" if side == "buy" else "eb-ind-score-sell"
+        for name, fired, pts in indicators:
+            dot = dot_on if fired else "eb-dot-off"
+            sc  = f'<span class="{sc_on}">+{pts}</span>' if fired else '<span class="eb-ind-score-off">—</span>'
+            rows += f'''<div class="eb-ind-row">
+              <span class="eb-ind-name"><span class="{dot}"></span>{name}</span>{sc}
+            </div>'''
+        return rows
+
+    def ladder_buy():
+        return f'''
+        <div class="eb-ladder">
+          <div class="eb-ladder-line-buy"></div>
+          <div class="eb-lev-row">
+            <span class="eb-lev-dot" style="background:#3b6d11"></span>
+            <span class="eb-lev-key">Target 2</span>
+            <div class="eb-lev-right">
+              <span class="eb-lev-price">{fmt_price(sig["buy_tp2"])}</span>
+              <span class="eb-badge eb-badge-tp-buy">{sig["buy_tp2_pct"]}</span>
+            </div>
+          </div>
+          <div class="eb-lev-row">
+            <span class="eb-lev-dot" style="background:#639922"></span>
+            <span class="eb-lev-key">Target 1</span>
+            <div class="eb-lev-right">
+              <span class="eb-lev-price">{fmt_price(sig["buy_tp1"])}</span>
+              <span class="eb-badge eb-badge-tp-buy">{sig["buy_tp1_pct"]}</span>
+            </div>
+          </div>
+          <div class="eb-lev-row">
+            <span class="eb-lev-dot" style="background:#888;border:2px solid #27500a"></span>
+            <span class="eb-lev-key-entry">Entry</span>
+            <div class="eb-lev-right">
+              <span class="eb-lev-price eb-lev-price-entry" style="color:#27500a">{fmt_price(sig["buy_entry"])}</span>
+              <span class="eb-badge eb-badge-entry">limit</span>
+            </div>
+          </div>
+          <div class="eb-lev-row">
+            <span class="eb-lev-dot" style="background:#a32d2d"></span>
+            <span class="eb-lev-key" style="color:#a32d2d">Stop Loss</span>
+            <div class="eb-lev-right">
+              <span class="eb-lev-price" style="color:#a32d2d">{fmt_price(sig["buy_sl"])}</span>
+              <span class="eb-badge eb-badge-sl-buy">{sig["buy_sl_pct"]}</span>
+            </div>
+          </div>
+        </div>'''
+
+    def ladder_sell():
+        return f'''
+        <div class="eb-ladder">
+          <div class="eb-ladder-line-sell"></div>
+          <div class="eb-lev-row">
+            <span class="eb-lev-dot" style="background:#3b6d11"></span>
+            <span class="eb-lev-key" style="color:#3b6d11">Stop Loss</span>
+            <div class="eb-lev-right">
+              <span class="eb-lev-price" style="color:#3b6d11">{fmt_price(sig["sell_sl"])}</span>
+              <span class="eb-badge eb-badge-sl-sell">{sig["sell_sl_pct"]}</span>
+            </div>
+          </div>
+          <div class="eb-lev-row">
+            <span class="eb-lev-dot" style="background:#888;border:2px solid #791f1f"></span>
+            <span class="eb-lev-key-entry">Entry</span>
+            <div class="eb-lev-right">
+              <span class="eb-lev-price eb-lev-price-entry" style="color:#791f1f">{fmt_price(sig["sell_entry"])}</span>
+              <span class="eb-badge eb-badge-entry">limit</span>
+            </div>
+          </div>
+          <div class="eb-lev-row">
+            <span class="eb-lev-dot" style="background:#d85a30"></span>
+            <span class="eb-lev-key">Target 1</span>
+            <div class="eb-lev-right">
+              <span class="eb-lev-price">{fmt_price(sig["sell_tp1"])}</span>
+              <span class="eb-badge eb-badge-tp-sell">{sig["sell_tp1_pct"]}</span>
+            </div>
+          </div>
+          <div class="eb-lev-row">
+            <span class="eb-lev-dot" style="background:#a32d2d"></span>
+            <span class="eb-lev-key">Target 2</span>
+            <div class="eb-lev-right">
+              <span class="eb-lev-price">{fmt_price(sig["sell_tp2"])}</span>
+              <span class="eb-badge eb-badge-tp-sell">{sig["sell_tp2_pct"]}</span>
+            </div>
+          </div>
+        </div>'''
+
+    buy_action_cls  = "eb-action-buy"  if sig["buy_strength"]  == "STRONG"   else "eb-action-warn"
+    sell_action_cls = "eb-action-sell" if sig["sell_strength"] == "STRONG"   else "eb-action-warn"
+
+    rr_buy_interp  = (f"Profit {sig['buy_rr']}× lebih besar dari risiko"
+                      if sig["buy_rr"] >= 1 else "R/R kurang ideal — pertimbangkan ulang")
+    rr_sell_interp = (f"Profit {sig['sell_rr']}× lebih besar dari risiko"
+                      if sig["sell_rr"] >= 1 else "R/R kurang ideal — pertimbangkan ulang")
 
     with sc1:
         st.markdown(f"""
-        <div class="signal-buy">
-          <div class="sig-title-buy">BUY SIGNAL &nbsp; {em_buy[sig['buy_strength']]} {sig['buy_strength']}</div>
-          <div style="font-size:22px;font-weight:600;margin:6px 0">{fmt_price(sig['buy_entry'])}</div>
-          <div style="font-size:12px;color:#5f5e5a;margin-bottom:8px">{sig['buy_reason']}</div>
-          <table style="width:100%;font-size:12px;border-collapse:collapse">
-            <tr><td style="color:#888;padding:3px 0;border-top:1px solid #c0dd97">Target 1</td><td style="text-align:right;font-weight:500">{fmt_price(sig['buy_tp1'])}</td></tr>
-            <tr><td style="color:#888;padding:3px 0;border-top:1px solid #c0dd97">Target 2</td><td style="text-align:right;font-weight:500">{fmt_price(sig['buy_tp2'])}</td></tr>
-            <tr><td style="color:#888;padding:3px 0;border-top:1px solid #c0dd97">Stop Loss</td><td style="text-align:right;font-weight:500">{fmt_price(sig['buy_sl'])}</td></tr>
-            <tr><td style="color:#888;padding:3px 0;border-top:1px solid #c0dd97">R/R Ratio</td><td style="text-align:right;font-weight:500">{sig['buy_rr']}:1</td></tr>
-          </table>
-        </div>""", unsafe_allow_html=True)
+        <div class="eb-card eb-buy">
+          <div class="eb-hdr">
+            <span class="eb-label-buy">BUY SIGNAL</span>
+            {pill(sig['buy_strength'], 'buy')}
+          </div>
+          <div class="eb-entry-block eb-entry-block-buy">
+            <div class="eb-entry-lbl">Entry — pasang limit order di</div>
+            <div class="eb-price-buy">{fmt_price(sig['buy_entry'])}</div>
+            <div class="eb-price-sub">{sig['buy_entry_pct']} dari harga pasar ({fmt_price(sig['price'])})</div>
+          </div>
+          <div class="eb-ind-block eb-ind-block-buy">
+            <div class="eb-ind-title-buy">Konfirmasi indikator</div>
+            {ind_rows_html(sig['all_indicators'], 'buy')}
+          </div>
+          <div class="eb-levels">
+            <div class="eb-lev-title">Level harga</div>
+            {ladder_buy()}
+          </div>
+          <div class="eb-rr-block eb-rr-buy">
+            <div>
+              <div class="eb-rr-label">Risk / Reward</div>
+              <div class="eb-rr-interp">{rr_buy_interp}</div>
+            </div>
+            <div class="eb-rr-val-buy">{sig['buy_rr']} : 1</div>
+          </div>
+          <div class="{buy_action_cls}">{sig['buy_action']}</div>
+          <div class="eb-advice">{sig['buy_advice']}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     with sc2:
         st.markdown(f"""
-        <div class="signal-sell">
-          <div class="sig-title-sell">SELL SIGNAL &nbsp; {em_sell[sig['sell_strength']]} {sig['sell_strength']}</div>
-          <div style="font-size:22px;font-weight:600;margin:6px 0">{fmt_price(sig['sell_entry'])}</div>
-          <div style="font-size:12px;color:#5f5e5a;margin-bottom:8px">{sig['sell_reason']}</div>
-          <table style="width:100%;font-size:12px;border-collapse:collapse">
-            <tr><td style="color:#888;padding:3px 0;border-top:1px solid #f7c1c1">Target 1</td><td style="text-align:right;font-weight:500">{fmt_price(sig['sell_tp1'])}</td></tr>
-            <tr><td style="color:#888;padding:3px 0;border-top:1px solid #f7c1c1">Target 2</td><td style="text-align:right;font-weight:500">{fmt_price(sig['sell_tp2'])}</td></tr>
-            <tr><td style="color:#888;padding:3px 0;border-top:1px solid #f7c1c1">Stop Loss</td><td style="text-align:right;font-weight:500">{fmt_price(sig['sell_sl'])}</td></tr>
-            <tr><td style="color:#888;padding:3px 0;border-top:1px solid #f7c1c1">R/R Ratio</td><td style="text-align:right;font-weight:500">{sig['sell_rr']}:1</td></tr>
-          </table>
-        </div>""", unsafe_allow_html=True)
+        <div class="eb-card eb-sell">
+          <div class="eb-hdr">
+            <span class="eb-label-sell">SELL SIGNAL</span>
+            {pill(sig['sell_strength'], 'sell')}
+          </div>
+          <div class="eb-entry-block eb-entry-block-sell">
+            <div class="eb-entry-lbl">Entry — pasang limit order di</div>
+            <div class="eb-price-sell">{fmt_price(sig['sell_entry'])}</div>
+            <div class="eb-price-sub">{sig['sell_entry_pct']} dari harga pasar ({fmt_price(sig['price'])})</div>
+          </div>
+          <div class="eb-ind-block eb-ind-block-sell">
+            <div class="eb-ind-title-sell">Konfirmasi indikator</div>
+            {ind_rows_html(sig['sell_indicators'], 'sell')}
+          </div>
+          <div class="eb-levels">
+            <div class="eb-lev-title">Level harga</div>
+            {ladder_sell()}
+          </div>
+          <div class="eb-rr-block eb-rr-sell">
+            <div>
+              <div class="eb-rr-label">Risk / Reward</div>
+              <div class="eb-rr-interp">{rr_sell_interp}</div>
+            </div>
+            <div class="eb-rr-val-sell">{sig['sell_rr']} : 1</div>
+          </div>
+          <div class="{sell_action_cls}">{sig['sell_action']}</div>
+          <div class="eb-advice">{sig['sell_advice']}</div>
+        </div>
+        """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
 
