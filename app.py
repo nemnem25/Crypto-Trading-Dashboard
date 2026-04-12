@@ -170,7 +170,7 @@ LOGO_SVG = """
 </svg>
 """
 
-APP_VERSION = "11.0"   # ← ubah di sini setiap kali update versi
+APP_VERSION = "10.0"   # ← ubah di sini setiap kali update versi
 
 DAYS_MAP = {
     "1 hari":  1,
@@ -1697,6 +1697,147 @@ if show_signals:
         """, unsafe_allow_html=True)
 
     st.markdown("<br>", unsafe_allow_html=True)
+
+# ── Kalkulator Leverage
+if show_signals:
+    st.markdown("##### Kalkulator Leverage")
+    st.caption(
+        "Harga entry, target profit, dan stop loss diambil otomatis dari sinyal di atas. "
+        "Isi modal lalu pilih leverage — tabel menampilkan semua skenario sekaligus."
+    )
+
+    lev_col1, lev_col2 = st.columns([1, 3])
+    with lev_col1:
+        lev_capital = st.number_input(
+            "Modal / Margin (USD)", min_value=10.0, max_value=1_000_000.0,
+            value=1000.0, step=100.0, format="%.0f"
+        )
+        lev_pos = st.radio("Posisi", ["LONG (Beli)", "SHORT (Jual)"], horizontal=True)
+
+    is_long = "Beli" in lev_pos
+
+    # Values locked from signal
+    lev_entry  = sig["buy_entry"]  if is_long else sig["sell_entry"]
+    lev_tp1    = sig["buy_tp1"]    if is_long else sig["sell_tp1"]
+    lev_tp2    = sig["buy_tp2"]    if is_long else sig["sell_tp2"]
+    lev_tp3    = sig["buy_tp3"]    if is_long else sig["sell_tp3"]
+    lev_sl     = sig["buy_sl"]     if is_long else sig["sell_sl"]
+
+    with lev_col2:
+        lc1, lc2, lc3, lc4, lc5 = st.columns(5)
+        lc1.metric("Entry (fixed)", fmt_price(lev_entry))
+        lc2.metric("TP1 (fixed)",   fmt_price(lev_tp1))
+        lc3.metric("TP2 (fixed)",   fmt_price(lev_tp2))
+        lc4.metric("TP3 (fixed)",   fmt_price(lev_tp3))
+        lc5.metric("Stop Loss (fixed)", fmt_price(lev_sl))
+
+    LEVERAGES = [1, 5, 10, 15, 20, 25, 50, 100]
+    accent_buy  = "#3b6d11"
+    accent_sell = "#a32d2d"
+    accent      = accent_buy if is_long else accent_sell
+    bg_light    = "#eaf3de" if is_long else "#fcebeb"
+    txt_color   = "#27500a" if is_long else "#791f1f"
+
+    lev_rows = []
+    for lev in LEVERAGES:
+        position  = lev_capital * lev
+        qty       = position / lev_entry
+
+        if is_long:
+            pnl_tp1 = (lev_tp1 - lev_entry) * qty
+            pnl_tp2 = (lev_tp2 - lev_entry) * qty
+            pnl_tp3 = (lev_tp3 - lev_entry) * qty
+            pnl_sl  = (lev_sl  - lev_entry) * qty
+            liq     = lev_entry * (1 - 0.9 / lev)
+        else:
+            pnl_tp1 = (lev_entry - lev_tp1) * qty
+            pnl_tp2 = (lev_entry - lev_tp2) * qty
+            pnl_tp3 = (lev_entry - lev_tp3) * qty
+            pnl_sl  = (lev_entry - lev_sl)  * qty
+            liq     = lev_entry * (1 + 0.9 / lev)
+
+        roi_tp1 = pnl_tp1 / lev_capital * 100
+        roi_tp2 = pnl_tp2 / lev_capital * 100
+        roi_tp3 = pnl_tp3 / lev_capital * 100
+        roi_sl  = pnl_sl  / lev_capital * 100
+        liq_dist = abs((liq - lev_entry) / lev_entry * 100)
+
+        def fp(v):
+            if abs(v) >= 10000: return f"${v:,.0f}"
+            if abs(v) >= 100:   return f"${v:,.2f}"
+            return f"${v:.4f}"
+
+        lev_rows.append({
+            "Leverage":       f"{lev}x",
+            "Posisi total":   fp(position),
+            "Profit TP1":     f"{fp(pnl_tp1)} ({roi_tp1:+.1f}%)",
+            "Profit TP2":     f"{fp(pnl_tp2)} ({roi_tp2:+.1f}%)",
+            "Profit TP3":     f"{fp(pnl_tp3)} ({roi_tp3:+.1f}%)",
+            "Loss SL":        f"{fp(pnl_sl)} ({roi_sl:+.1f}%)",
+            "Harga Likuidasi": fp(liq),
+            "Jarak Likuidasi": f"{liq_dist:.2f}%",
+        })
+
+    rows_html = ""
+    for i, row in enumerate(lev_rows):
+        lev_num  = int(row["Leverage"].replace("x",""))
+        liq_d    = float(row["Jarak Likuidasi"].replace("%",""))
+        is_danger = liq_d < 2.0
+        liq_style = ("color:#791f1f;font-weight:700;background:#fcebeb;"
+                     "border-radius:3px;padding:1px 4px") if is_danger else "color:#854f0b;font-weight:700"
+        row_bg = f"background:{bg_light};" if lev_num in [10, 25] else ""
+
+        td   = ("font-size:11px;padding:7px 10px;border-bottom:0.5px solid #f0f0f0;"
+                "text-align:right;font-family:monospace;white-space:nowrap")
+        td_l = td.replace("text-align:right","text-align:left")
+        vals = list(row.values())
+
+        rows_html += (
+            f'<tr style="{row_bg}">'
+            f'<td style="{td_l};font-weight:700">'
+            f'<span style="background:{bg_light};color:{txt_color};padding:2px 9px;'
+            f'border-radius:12px;font-size:10px;font-weight:700">{vals[0]}</span></td>'
+            f'<td style="{td}">{vals[1]}</td>'
+            f'<td style="{td};color:#27500a;font-weight:700">{vals[2]}</td>'
+            f'<td style="{td};color:#27500a;font-weight:700">{vals[3]}</td>'
+            f'<td style="{td};color:#27500a;font-weight:700">{vals[4]}</td>'
+            f'<td style="{td};color:#791f1f;font-weight:700">{vals[5]}</td>'
+            f'<td style="{td};{liq_style}">{vals[6]}</td>'
+            f'<td style="{td};{liq_style}">{vals[7]}</td>'
+            f'</tr>'
+        )
+
+    th_style   = ("font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;"
+                  "color:#888;padding:8px 10px;border-bottom:0.5px solid #e8e8e8;"
+                  "background:#fafafa;text-align:right;white-space:nowrap;font-family:sans-serif")
+    th_style_l = th_style.replace("text-align:right","text-align:left")
+
+    col_headers = [
+        "Leverage", "Posisi total",
+        f"Profit TP1 ({fmt_price(lev_tp1)})",
+        f"Profit TP2 ({fmt_price(lev_tp2)})",
+        f"Profit TP3 ({fmt_price(lev_tp3)})",
+        f"Loss SL ({fmt_price(lev_sl)})",
+        "Harga Likuidasi", "Jarak Likuidasi"
+    ]
+    ths = "".join([
+        f'<th style="{th_style_l if i==0 else th_style}">{h}</th>'
+        for i, h in enumerate(col_headers)
+    ])
+
+    table_html = f"""
+<div style="border-radius:10px;overflow:hidden;border:0.5px solid #e8e8e8;margin-bottom:8px;overflow-x:auto">
+  <table style="width:100%;border-collapse:collapse;min-width:700px">
+    <thead><tr>{ths}</tr></thead>
+    <tbody>{rows_html}</tbody>
+  </table>
+</div>
+<div style="font-size:10px;color:#aaa;line-height:1.6;padding:8px 12px;background:#f9f9f9;border-radius:6px;font-family:sans-serif">
+  Harga entry dan target profit dikunci dari sinyal CTSA di atas. Perhitungan menggunakan isolated margin tanpa funding rate dan biaya trading.
+  Leverage tinggi (&gt;25x) sangat berisiko — kolom "Jarak Likuidasi" merah berarti likuidasi bisa terjadi dari pergerakan kecil.
+</div>
+"""
+    st.markdown(table_html, unsafe_allow_html=True)
 
 # ── Indicator summary
 st.markdown("##### Ringkasan Indikator")
