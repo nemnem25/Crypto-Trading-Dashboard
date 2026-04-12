@@ -170,6 +170,8 @@ LOGO_SVG = """
 </svg>
 """
 
+APP_VERSION = "10.0"   # ← ubah di sini setiap kali update versi
+
 DAYS_MAP = {
     "1 hari":  1,
     "7 hari":  7,
@@ -1200,7 +1202,7 @@ with st.sidebar:
       <div style="width:44px;height:44px;flex-shrink:0">{LOGO_SVG}</div>
       <div>
         <div style="font-size:13px;font-weight:700;color:#111;font-family:sans-serif;letter-spacing:-0.2px">Crypto Trading Signal App</div>
-        <div style="font-size:10px;color:#888;font-family:sans-serif;letter-spacing:.8px;margin-top:1px">CTSA &nbsp;·&nbsp; v8.0 &nbsp;<span style="background:#111;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px">BETA</span></div>
+        <div style="font-size:10px;color:#888;font-family:sans-serif;letter-spacing:.8px;margin-top:1px">CTSA &nbsp;·&nbsp; v{APP_VERSION} &nbsp;<span style="background:#111;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px">BETA</span></div>
       </div>
     </div>
     """, unsafe_allow_html=True)
@@ -1243,7 +1245,7 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.caption("Data: CoinGecko API · Fear & Greed: alternative.me\nCache 60 dtk · v8.0")
+    st.caption(f"Data: CoinGecko API · Fear & Greed: alternative.me\nCache 60 dtk · v{APP_VERSION}")
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
@@ -1293,7 +1295,7 @@ st.markdown(f"""
     <div style="width:48px;height:48px;flex-shrink:0">{LOGO_SVG}</div>
     <div style="text-align:right">
       <div style="font-size:15px;font-weight:700;color:#111;font-family:sans-serif;letter-spacing:-0.3px;white-space:nowrap">Crypto Trading Signal App</div>
-      <div style="font-size:11px;font-weight:600;color:#888;font-family:sans-serif;letter-spacing:1px;margin-top:1px;white-space:nowrap">CTSA &nbsp;·&nbsp; v8.0</div>
+      <div style="font-size:11px;font-weight:600;color:#888;font-family:sans-serif;letter-spacing:1px;margin-top:1px;white-space:nowrap">CTSA &nbsp;·&nbsp; v{APP_VERSION}</div>
       <div style="margin-top:5px"><span style="font-size:9px;font-weight:600;padding:2px 7px;border-radius:3px;background:#111;color:#fff;font-family:sans-serif;letter-spacing:.5px">BETA</span></div>
     </div>
   </div>
@@ -1984,6 +1986,11 @@ if show_vpvr and days in [30, 90]:
         "Sinyal beli/jual murni dari struktur volume — independen dari indikator teknikal lainnya. "
         "Aktif hanya untuk periode 30 hari dan 90 hari."
     )
+    # Wrapper dengan padding agar tidak menempel ke tepi
+    st.markdown(
+        '<div style="padding:0 12px;margin-bottom:8px">',
+        unsafe_allow_html=True
+    )
 
     with st.spinner("Mengambil data volume harian dari CoinGecko..."):
         try:
@@ -2153,9 +2160,44 @@ if show_vpvr and days in [30, 90]:
 </div>
 """, unsafe_allow_html=True)
 
+    st.markdown('</div>', unsafe_allow_html=True)  # close VPVR padding wrapper
+
 elif show_vpvr and days not in [30, 90]:
     st.markdown("---")
     st.info("VPVR aktif hanya untuk periode **30 hari** dan **90 hari**. Pilih periode tersebut di sidebar untuk melihat Volume Profile.")
+
+# ── Footer
+LOGO_FOOTER = LOGO_SVG.replace('viewBox="0 0 60 60"', 'viewBox="0 0 60 60" width="38" height="38"')
+st.markdown(f"""
+<div style="
+    margin: 32px 0 8px 0;
+    padding: 20px 24px;
+    border-top: 0.5px solid #e0e0e0;
+    background: #f8f9fa;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 12px;
+    font-family: sans-serif;
+">
+  <div style="display:flex;align-items:center;gap:12px">
+    <div style="width:38px;height:38px;flex-shrink:0">{LOGO_FOOTER}</div>
+    <div>
+      <div style="font-size:14px;font-weight:700;color:#111;letter-spacing:-0.2px">Crypto Trading Signal App</div>
+      <div style="font-size:11px;color:#888;margin-top:2px;letter-spacing:.6px">
+        CTSA &nbsp;·&nbsp; v{APP_VERSION} &nbsp;
+        <span style="background:#111;color:#fff;padding:1px 6px;border-radius:3px;font-size:9px;font-weight:700;letter-spacing:.5px">BETA</span>
+      </div>
+    </div>
+  </div>
+  <div style="text-align:right;font-size:10px;color:#aaa;line-height:1.6">
+    <div>Data: CoinGecko API · Fear & Greed: alternative.me</div>
+    <div>Bukan saran investasi · DYOR · {datetime.now().strftime('%d %b %Y')}</div>
+  </div>
+</div>
+""", unsafe_allow_html=True)
 
 if auto_refresh:
     time.sleep(60)
