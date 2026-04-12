@@ -515,7 +515,9 @@ def calc_fibonacci(df: pd.DataFrame, lookback: int = 60):
             for i, r in enumerate(ratios)]
 
 
-def get_signals(df, rsi, stoch_k, stoch_d, macd_hist, ema20, ema50, adx_val, di_plus, di_minus, atr_series, sr_channels):
+def get_signals(df, rsi, stoch_k, stoch_d, macd_hist, ema20, ema50,
+                adx_val, di_plus, di_minus, atr_series, sr_channels,
+                obv_series=None, fib_levels=None, fg_now=None):
     price     = df["close"].iloc[-1]
     rsi_val   = rsi.iloc[-1]   if not pd.isna(rsi.iloc[-1])   else 50
     hist_val  = macd_hist.iloc[-1] if not pd.isna(macd_hist.iloc[-1]) else 0
@@ -565,6 +567,50 @@ def get_signals(df, rsi, stoch_k, stoch_d, macd_hist, ema20, ema50, adx_val, di_
         if abs(price - ch["hi"]) / price < 0.008:
             sell_score += 2; sell_r.append("At resistance"); break
 
+    # OBV — trend dan divergensi
+    obv_trend_bull = obv_div_bull = obv_trend_bear = obv_div_bear = False
+    if obv_series is not None and len(obv_series) >= 20:
+        obv_ema = obv_series.ewm(span=20, adjust=False).mean()
+        obv_now = obv_series.iloc[-1]
+        obv_ema_now = obv_ema.iloc[-1]
+        # Trend: OBV di atas EMA-nya
+        if obv_now > obv_ema_now:
+            buy_score += 1; buy_r.append("OBV bullish trend"); obv_trend_bull = True
+        else:
+            sell_score += 1; sell_r.append("OBV bearish trend"); obv_trend_bear = True
+        # Divergensi: harga naik tapi OBV turun (bearish div) atau sebaliknya
+        if len(obv_series) >= 5:
+            price_5 = df["close"].iloc[-5]
+            obv_5   = obv_series.iloc[-5]
+            if price > price_5 and obv_now < obv_5:
+                sell_score += 2; sell_r.append("OBV divergensi bearish"); obv_div_bear = True
+            elif price < price_5 and obv_now > obv_5:
+                buy_score += 2; buy_r.append("OBV divergensi bullish"); obv_div_bull = True
+
+    # Fibonacci — harga di golden zone (38.2%–61.8%)
+    fib_golden_buy = fib_golden_sell = False
+    if fib_levels:
+        fib_382 = next((f["price"] for f in fib_levels if abs(f["ratio"] - 0.382) < 0.01), None)
+        fib_618 = next((f["price"] for f in fib_levels if abs(f["ratio"] - 0.618) < 0.01), None)
+        if fib_382 and fib_618:
+            lo_zone = min(fib_382, fib_618)
+            hi_zone = max(fib_382, fib_618)
+            if lo_zone <= price <= hi_zone:
+                # Di dalam golden zone — beli jika harga mendekati batas bawah, jual jika mendekati atas
+                mid_zone = (lo_zone + hi_zone) / 2
+                if price <= mid_zone:
+                    buy_score += 1; buy_r.append("Fib golden zone (beli)"); fib_golden_buy = True
+                else:
+                    sell_score += 1; sell_r.append("Fib golden zone (jual)"); fib_golden_sell = True
+
+    # Fear & Greed — sentimen ekstrem
+    fg_extreme_buy = fg_extreme_sell = False
+    if fg_now is not None:
+        if fg_now <= 25:
+            buy_score += 1; buy_r.append(f"Extreme Fear ({fg_now})"); fg_extreme_buy = True
+        elif fg_now >= 75:
+            sell_score += 1; sell_r.append(f"Extreme Greed ({fg_now})"); fg_extreme_sell = True
+
     dp = 2 if price < 100 else 0
 
     # ── R/R 2:1 profesional ─────────────────────────────────────────────────
@@ -595,31 +641,39 @@ def get_signals(df, rsi, stoch_k, stoch_d, macd_hist, ema20, ema50, adx_val, di_
     buy_pct  = lambda p: f"{(p - buy_entry)  / buy_entry  * 100:+.2f}%"
     sell_pct = lambda p: f"{(p - sell_entry) / sell_entry * 100:+.2f}%"
 
-    MAX_SCORE = 12
-    bs = "STRONG" if buy_score >= 6 else "MODERATE" if buy_score >= 3 else "WEAK"
-    ss = "STRONG" if sell_score >= 6 else "MODERATE" if sell_score >= 3 else "WEAK"
+    MAX_SCORE = 19   # 12 (lama) + 3 OBV + 1 Fib + 1 F&G (masing-masing per sisi)
+    bs = "STRONG" if buy_score  >= 9 else "MODERATE" if buy_score  >= 5 else "WEAK"
+    ss = "STRONG" if sell_score >= 9 else "MODERATE" if sell_score >= 5 else "WEAK"
 
     all_indicators = [
-        ("RSI oversold",       rsi_val < 35,   2),
-        ("RSI low",            35 <= rsi_val < 45, 1),
-        ("StochRSI cross up",  sk < 20 and sk > sd, 2),
-        ("StochRSI oversold",  20 <= sk < 30,  1),
-        ("MACD cross up",      hist_val > 0 and prev_hist <= 0, 2),
-        ("MACD positif",       hist_val > 0 and not (hist_val > 0 and prev_hist <= 0), 1),
-        ("EMA bullish",        e20 > e50,       1),
-        ("ADX trend bullish",  adx > 25 and dip > dim, 2),
-        ("At support",         any(abs(price - ch["lo"]) / price < 0.008 for ch in sr_channels), 2),
+        ("RSI oversold",           rsi_val < 35,                          2),
+        ("RSI low",                35 <= rsi_val < 45,                    1),
+        ("StochRSI cross up",      sk < 20 and sk > sd,                   2),
+        ("StochRSI oversold",      20 <= sk < 30,                         1),
+        ("MACD cross up",          hist_val > 0 and prev_hist <= 0,       2),
+        ("MACD positif",           hist_val > 0 and not (hist_val > 0 and prev_hist <= 0), 1),
+        ("EMA bullish",            e20 > e50,                             1),
+        ("ADX trend bullish",      adx > 25 and dip > dim,                2),
+        ("At support",             any(abs(price - ch["lo"]) / price < 0.008 for ch in sr_channels), 2),
+        ("OBV bullish trend",      obv_trend_bull,                        1),
+        ("OBV divergensi bullish", obv_div_bull,                          2),
+        ("Fib golden zone (beli)", fib_golden_buy,                        1),
+        ("Extreme Fear",           fg_extreme_buy,                        1),
     ]
     sell_indicators = [
-        ("RSI overbought",     rsi_val > 65,   2),
-        ("RSI high",           55 < rsi_val <= 65, 1),
-        ("StochRSI cross down",sk > 80 and sk < sd, 2),
-        ("StochRSI overbought",70 <= sk <= 80, 1),
-        ("MACD cross down",    hist_val < 0 and prev_hist >= 0, 2),
-        ("MACD negatif",       hist_val < 0 and not (hist_val < 0 and prev_hist >= 0), 1),
-        ("EMA bearish",        e20 <= e50,      1),
-        ("ADX trend bearish",  adx > 25 and dim > dip, 2),
-        ("At resistance",      any(abs(price - ch["hi"]) / price < 0.008 for ch in sr_channels), 2),
+        ("RSI overbought",         rsi_val > 65,                          2),
+        ("RSI high",               55 < rsi_val <= 65,                    1),
+        ("StochRSI cross down",    sk > 80 and sk < sd,                   2),
+        ("StochRSI overbought",    70 <= sk <= 80,                        1),
+        ("MACD cross down",        hist_val < 0 and prev_hist >= 0,       2),
+        ("MACD negatif",           hist_val < 0 and not (hist_val < 0 and prev_hist >= 0), 1),
+        ("EMA bearish",            e20 <= e50,                            1),
+        ("ADX trend bearish",      adx > 25 and dim > dip,                2),
+        ("At resistance",          any(abs(price - ch["hi"]) / price < 0.008 for ch in sr_channels), 2),
+        ("OBV bearish trend",      obv_trend_bear,                        1),
+        ("OBV divergensi bearish", obv_div_bear,                          2),
+        ("Fib golden zone (jual)", fib_golden_sell,                       1),
+        ("Extreme Greed",          fg_extreme_sell,                       1),
     ]
 
     # Recommendation text
@@ -1320,8 +1374,12 @@ ha         = calc_heikin_ashi(df)
 sr_channels = calc_sr_channels(df) if show_sr else []
 sig_atr = atr_series.iloc[-1] if not atr_series.empty and not pd.isna(atr_series.iloc[-1]) else cur_price * 0.01
 fib_levels  = calc_fibonacci(df)   if show_fib else []
+_fg_now_early = int(fg_data[0]["value"]) if fg_data else None
 sig = get_signals(df, rsi, stoch_k, stoch_d, macd_hist, ema20, ema50,
-                  adx_val, di_plus, di_minus, atr_series, sr_channels)
+                  adx_val, di_plus, di_minus, atr_series, sr_channels,
+                  obv_series=obv,
+                  fib_levels=fib_levels if fib_levels else calc_fibonacci(df),
+                  fg_now=_fg_now_early)
 
 # ── Metric strip
 c1, c2, c3, c4, c5, c6 = st.columns(6)
