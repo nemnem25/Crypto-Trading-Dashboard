@@ -348,26 +348,39 @@ def get_signals(df, rsi, stoch_k, stoch_d, macd_hist, ema20, ema50, adx_val, di_
         if abs(price - ch["hi"]) / price < 0.008:
             sell_score += 2; sell_r.append("At resistance"); break
 
-    buy_entry = round(price * 0.999, 2 if price < 100 else 0)
-    buy_tp1   = round(buy_entry + atr * 2,   2 if price < 100 else 0)
-    buy_tp2   = round(buy_entry + atr * 3.5, 2 if price < 100 else 0)
-    buy_sl    = round(buy_entry - atr * 1.2, 2 if price < 100 else 0)
-    buy_rr    = round((buy_tp1 - buy_entry) / (buy_entry - buy_sl), 2) if (buy_entry - buy_sl) != 0 else 0
+    dp = 2 if price < 100 else 0
 
-    sell_entry = round(price * 1.001, 2 if price < 100 else 0)
-    sell_tp1   = round(sell_entry - atr * 2,   2 if price < 100 else 0)
-    sell_tp2   = round(sell_entry - atr * 3.5, 2 if price < 100 else 0)
-    sell_sl    = round(sell_entry + atr * 1.2, 2 if price < 100 else 0)
-    sell_rr    = round((sell_entry - sell_tp1) / (sell_sl - sell_entry), 2) if (sell_sl - sell_entry) != 0 else 0
+    # ── R/R 2:1 profesional ─────────────────────────────────────────────────
+    # SL = 1 ATR dari entry → TP1 = 2 ATR (2:1) → TP2 = 4 ATR (4:1)
+    # TP3 = resistance/support terdekat dari S/R channels (dinamis)
+    buy_entry = round(price * 0.999, dp)
+    buy_sl    = round(buy_entry - atr * 1.0, dp)          # risiko 1 ATR
+    buy_tp1   = round(buy_entry + atr * 2.0, dp)          # R/R 2:1
+    buy_tp2   = round(buy_entry + atr * 4.0, dp)          # R/R 4:1
+    # TP3: resistance terdekat di atas TP2, fallback ke ATR * 6
+    res_above = [ch["lo"] for ch in sr_channels
+                 if ch["lo"] > buy_tp2 and ch["lo"] > buy_entry]
+    buy_tp3   = round(min(res_above), dp) if res_above else round(buy_entry + atr * 6.0, dp)
+    buy_risk  = buy_entry - buy_sl
+    buy_rr    = round((buy_tp1 - buy_entry) / buy_risk, 2) if buy_risk > 0 else 2.0
+
+    sell_entry = round(price * 1.001, dp)
+    sell_sl    = round(sell_entry + atr * 1.0, dp)        # risiko 1 ATR
+    sell_tp1   = round(sell_entry - atr * 2.0, dp)        # R/R 2:1
+    sell_tp2   = round(sell_entry - atr * 4.0, dp)        # R/R 4:1
+    # TP3: support terdekat di bawah TP2, fallback ke ATR * 6
+    sup_below  = [ch["hi"] for ch in sr_channels
+                  if ch["hi"] < sell_tp2 and ch["hi"] < sell_entry]
+    sell_tp3   = round(max(sup_below), dp) if sup_below else round(sell_entry - atr * 6.0, dp)
+    sell_risk  = sell_sl - sell_entry
+    sell_rr    = round((sell_entry - sell_tp1) / sell_risk, 2) if sell_risk > 0 else 2.0
+
+    buy_pct  = lambda p: f"{(p - buy_entry)  / buy_entry  * 100:+.2f}%"
+    sell_pct = lambda p: f"{(p - sell_entry) / sell_entry * 100:+.2f}%"
 
     MAX_SCORE = 12
     bs = "STRONG" if buy_score >= 6 else "MODERATE" if buy_score >= 3 else "WEAK"
     ss = "STRONG" if sell_score >= 6 else "MODERATE" if sell_score >= 3 else "WEAK"
-
-    # Full indicator breakdown for display
-    dp = 2 if price < 100 else 0
-    buy_pct  = lambda p: f"{(p - buy_entry)  / buy_entry  * 100:+.2f}%"
-    sell_pct = lambda p: f"{(p - sell_entry) / sell_entry * 100:+.2f}%"
 
     all_indicators = [
         ("RSI oversold",       rsi_val < 35,   2),
@@ -420,14 +433,16 @@ def get_signals(df, rsi, stoch_k, stoch_d, macd_hist, ema20, ema50, adx_val, di_
         "buy_strength": bs, "sell_strength": ss,
         "buy_reason":  " + ".join(buy_r)  or "Mixed signals",
         "sell_reason": " + ".join(sell_r) or "Mixed signals",
-        "buy_entry": buy_entry, "buy_tp1": buy_tp1, "buy_tp2": buy_tp2,
+        "buy_entry": buy_entry, "buy_tp1": buy_tp1, "buy_tp2": buy_tp2, "buy_tp3": buy_tp3,
         "buy_sl": buy_sl, "buy_rr": buy_rr,
         "buy_tp1_pct": buy_pct(buy_tp1), "buy_tp2_pct": buy_pct(buy_tp2),
+        "buy_tp3_pct": buy_pct(buy_tp3),
         "buy_sl_pct":  f"{(buy_sl - buy_entry) / buy_entry * 100:+.2f}%",
         "buy_entry_pct": f"{(buy_entry - price) / price * 100:+.2f}%",
-        "sell_entry": sell_entry, "sell_tp1": sell_tp1, "sell_tp2": sell_tp2,
+        "sell_entry": sell_entry, "sell_tp1": sell_tp1, "sell_tp2": sell_tp2, "sell_tp3": sell_tp3,
         "sell_sl": sell_sl, "sell_rr": sell_rr,
         "sell_tp1_pct": sell_pct(sell_tp1), "sell_tp2_pct": sell_pct(sell_tp2),
+        "sell_tp3_pct": sell_pct(sell_tp3),
         "sell_sl_pct":  f"{(sell_sl - sell_entry) / sell_entry * 100:+.2f}%",
         "sell_entry_pct": f"{(sell_entry - price) / price * 100:+.2f}%",
         "all_indicators": all_indicators,
@@ -649,6 +664,95 @@ def build_fg_history(fg_data):
     return fig
 
 
+def run_monte_carlo(closes: pd.Series, n_sim: int = 600, max_days: int = 365):
+    log_ret = np.log(closes / closes.shift(1)).dropna()
+    mu      = log_ret.mean()
+    sigma   = log_ret.std()
+    last    = closes.iloc[-1]
+    np.random.seed(42)
+    sims = np.zeros((max_days, n_sim))
+    for s in range(n_sim):
+        price = last
+        for d in range(max_days):
+            shock  = np.random.normal(mu, sigma)
+            price  = price * np.exp(shock)
+            sims[d, s] = price
+    return sims, last
+
+
+def build_monte_carlo_chart(closes: pd.Series, coin_lbl: str):
+    n_sim, max_days = 600, 365
+    sims, last = run_monte_carlo(closes, n_sim, max_days)
+    days_range = np.arange(1, max_days + 1)
+
+    p10  = np.percentile(sims, 10, axis=1)
+    p25  = np.percentile(sims, 25, axis=1)
+    p50  = np.percentile(sims, 50, axis=1)
+    p75  = np.percentile(sims, 75, axis=1)
+    p90  = np.percentile(sims, 90, axis=1)
+
+    fig = go.Figure()
+
+    # Cone bands
+    fig.add_trace(go.Scatter(
+        x=np.concatenate([days_range, days_range[::-1]]),
+        y=np.concatenate([p90, p10[::-1]]),
+        fill="toself", fillcolor="rgba(83,74,183,0.08)",
+        line=dict(color="rgba(0,0,0,0)"), name="P10–P90 (80%)",
+        hoverinfo="skip"
+    ))
+    fig.add_trace(go.Scatter(
+        x=np.concatenate([days_range, days_range[::-1]]),
+        y=np.concatenate([p75, p25[::-1]]),
+        fill="toself", fillcolor="rgba(83,74,183,0.15)",
+        line=dict(color="rgba(0,0,0,0)"), name="P25–P75 (50%)",
+        hoverinfo="skip"
+    ))
+
+    # Percentile lines
+    fig.add_trace(go.Scatter(x=days_range, y=p90, name="P90 (optimis)",
+                             line=dict(color="#3b6d11", width=1, dash="dot"),
+                             hovertemplate="Hari %{x}<br>P90: $%{y:,.2f}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=days_range, y=p75, name="P75",
+                             line=dict(color="#639922", width=1, dash="dot"),
+                             hovertemplate="Hari %{x}<br>P75: $%{y:,.2f}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=days_range, y=p50, name="Median (P50)",
+                             line=dict(color="#534ab7", width=2),
+                             hovertemplate="Hari %{x}<br>Median: $%{y:,.2f}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=days_range, y=p25, name="P25",
+                             line=dict(color="#d85a30", width=1, dash="dot"),
+                             hovertemplate="Hari %{x}<br>P25: $%{y:,.2f}<extra></extra>"))
+    fig.add_trace(go.Scatter(x=days_range, y=p10, name="P10 (pesimis)",
+                             line=dict(color="#a32d2d", width=1, dash="dot"),
+                             hovertemplate="Hari %{x}<br>P10: $%{y:,.2f}<extra></extra>"))
+
+    # Vertical markers at key horizons
+    for d, lbl in [(3,"3d"), (7,"7d"), (30,"30d"), (90,"90d"), (365,"365d")]:
+        fig.add_vline(x=d, line_color="rgba(136,135,128,0.4)", line_dash="dash", line_width=1,
+                      annotation_text=lbl, annotation_position="top",
+                      annotation_font_size=9, annotation_font_color="#888780")
+
+    # Current price line
+    fig.add_hline(y=last, line_color="rgba(136,135,128,0.5)", line_dash="dot", line_width=1,
+                  annotation_text=f"Harga kini ${last:,.2f}",
+                  annotation_position="right", annotation_font_size=9)
+
+    fig.update_layout(
+        height=420,
+        margin=dict(l=10, r=80, t=20, b=10),
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(248,249,250,0.5)",
+        legend=dict(orientation="h", yanchor="bottom", y=1.01,
+                    xanchor="left", x=0, font=dict(size=10)),
+        hovermode="x unified",
+        xaxis=dict(title="Hari ke depan", tickfont=dict(size=10),
+                   gridcolor="rgba(128,128,128,0.08)"),
+        yaxis=dict(tickfont=dict(size=10), gridcolor="rgba(128,128,128,0.08)",
+                   tickprefix="$", tickformat=",.0f"),
+    )
+    return fig, sims, p10, p25, p50, p75, p90
+
+
 # ── HELPERS ───────────────────────────────────────────────────────────────────
 
 def fmt_price(p):
@@ -676,8 +780,18 @@ with st.sidebar:
     st.markdown("## ⚙️ Settings")
     coin_label = st.selectbox("Pair", list(COINS.keys()), index=0)
     coin_id    = COINS[coin_label]
+
     days_label = st.selectbox("Periode", list(DAYS_MAP.keys()), index=0)
     days       = DAYS_MAP[days_label]
+
+    PERIOD_INFO = {
+        "1 hari":  "Candle 30 menit · cocok untuk intraday / scalping",
+        "7 hari":  "Candle 4 jam · cocok untuk swing trading pendek",
+        "14 hari": "Candle harian · cocok untuk swing trading",
+        "30 hari": "Candle harian · cocok untuk position trading",
+        "90 hari": "Candle mingguan · cocok untuk investasi jangka menengah",
+    }
+    st.caption(f"ℹ️ {PERIOD_INFO[days_label]}")
 
     st.markdown("---")
     st.markdown("**Tampilan chart**")
@@ -690,6 +804,7 @@ with st.sidebar:
     show_obv      = st.checkbox("OBV", value=True)
     show_signals  = st.checkbox("Sinyal Beli / Jual", value=True)
     show_fg       = st.checkbox("Fear & Greed Index", value=True)
+    show_mc       = st.checkbox("Simulasi Monte Carlo", value=True)
 
     st.markdown("---")
     auto_refresh = st.checkbox("Auto-refresh (60 dtk)", value=False)
@@ -698,7 +813,7 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.caption("Sumber data: CoinGecko API\nFear & Greed: alternative.me\nCache: 60 dtk · v3.0")
+    st.caption("Sumber data: CoinGecko API\nFear & Greed: alternative.me\nCache: 60 dtk · v5.0")
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
@@ -899,8 +1014,16 @@ if show_signals:
         <div class="eb-ladder">
           <div class="eb-ladder-line-buy"></div>
           <div class="eb-lev-row">
+            <span class="eb-lev-dot" style="background:#27500a"></span>
+            <span class="eb-lev-key">Target 3 <small style="color:#888;font-size:9px">(R/R 6:1 · S/R dinamis)</small></span>
+            <div class="eb-lev-right">
+              <span class="eb-lev-price">{fmt_price(sig["buy_tp3"])}</span>
+              <span class="eb-badge eb-badge-tp-buy">{sig["buy_tp3_pct"]}</span>
+            </div>
+          </div>
+          <div class="eb-lev-row">
             <span class="eb-lev-dot" style="background:#3b6d11"></span>
-            <span class="eb-lev-key">Target 2</span>
+            <span class="eb-lev-key">Target 2 <small style="color:#888;font-size:9px">(R/R 4:1)</small></span>
             <div class="eb-lev-right">
               <span class="eb-lev-price">{fmt_price(sig["buy_tp2"])}</span>
               <span class="eb-badge eb-badge-tp-buy">{sig["buy_tp2_pct"]}</span>
@@ -908,7 +1031,7 @@ if show_signals:
           </div>
           <div class="eb-lev-row">
             <span class="eb-lev-dot" style="background:#639922"></span>
-            <span class="eb-lev-key">Target 1</span>
+            <span class="eb-lev-key">Target 1 <small style="color:#888;font-size:9px">(R/R 2:1)</small></span>
             <div class="eb-lev-right">
               <span class="eb-lev-price">{fmt_price(sig["buy_tp1"])}</span>
               <span class="eb-badge eb-badge-tp-buy">{sig["buy_tp1_pct"]}</span>
@@ -924,7 +1047,7 @@ if show_signals:
           </div>
           <div class="eb-lev-row">
             <span class="eb-lev-dot" style="background:#a32d2d"></span>
-            <span class="eb-lev-key" style="color:#a32d2d">Stop Loss</span>
+            <span class="eb-lev-key" style="color:#a32d2d">Stop Loss <small style="color:#888;font-size:9px">(1 ATR)</small></span>
             <div class="eb-lev-right">
               <span class="eb-lev-price" style="color:#a32d2d">{fmt_price(sig["buy_sl"])}</span>
               <span class="eb-badge eb-badge-sl-buy">{sig["buy_sl_pct"]}</span>
@@ -938,7 +1061,7 @@ if show_signals:
           <div class="eb-ladder-line-sell"></div>
           <div class="eb-lev-row">
             <span class="eb-lev-dot" style="background:#3b6d11"></span>
-            <span class="eb-lev-key" style="color:#3b6d11">Stop Loss</span>
+            <span class="eb-lev-key" style="color:#3b6d11">Stop Loss <small style="color:#888;font-size:9px">(1 ATR)</small></span>
             <div class="eb-lev-right">
               <span class="eb-lev-price" style="color:#3b6d11">{fmt_price(sig["sell_sl"])}</span>
               <span class="eb-badge eb-badge-sl-sell">{sig["sell_sl_pct"]}</span>
@@ -954,7 +1077,7 @@ if show_signals:
           </div>
           <div class="eb-lev-row">
             <span class="eb-lev-dot" style="background:#d85a30"></span>
-            <span class="eb-lev-key">Target 1</span>
+            <span class="eb-lev-key">Target 1 <small style="color:#888;font-size:9px">(R/R 2:1)</small></span>
             <div class="eb-lev-right">
               <span class="eb-lev-price">{fmt_price(sig["sell_tp1"])}</span>
               <span class="eb-badge eb-badge-tp-sell">{sig["sell_tp1_pct"]}</span>
@@ -962,10 +1085,18 @@ if show_signals:
           </div>
           <div class="eb-lev-row">
             <span class="eb-lev-dot" style="background:#a32d2d"></span>
-            <span class="eb-lev-key">Target 2</span>
+            <span class="eb-lev-key">Target 2 <small style="color:#888;font-size:9px">(R/R 4:1)</small></span>
             <div class="eb-lev-right">
               <span class="eb-lev-price">{fmt_price(sig["sell_tp2"])}</span>
               <span class="eb-badge eb-badge-tp-sell">{sig["sell_tp2_pct"]}</span>
+            </div>
+          </div>
+          <div class="eb-lev-row">
+            <span class="eb-lev-dot" style="background:#501313"></span>
+            <span class="eb-lev-key">Target 3 <small style="color:#888;font-size:9px">(R/R 6:1 · S/R dinamis)</small></span>
+            <div class="eb-lev-right">
+              <span class="eb-lev-price">{fmt_price(sig["sell_tp3"])}</span>
+              <span class="eb-badge eb-badge-tp-sell">{sig["sell_tp3_pct"]}</span>
             </div>
           </div>
         </div>'''
@@ -1141,6 +1272,81 @@ st.caption(
     f"Terakhir diperbarui: {datetime.now().strftime('%H:%M:%S')} · "
     f"Candle: {len(df)} · Disclaimer: bukan saran investasi."
 )
+
+# ── Monte Carlo panel
+if show_mc:
+    st.markdown("---")
+    st.markdown("##### Simulasi Monte Carlo — Proyeksi Harga")
+    st.caption(
+        "Menjalankan 600 simulasi acak berbasis volatilitas historis (Geometric Brownian Motion). "
+        "Bukan prediksi pasti — ini distribusi probabilitas skenario yang mungkin terjadi. "
+        "Area ungu gelap = 50% simulasi masuk rentang ini. Area ungu muda = 80% simulasi."
+    )
+
+    with st.spinner("Menjalankan 600 simulasi Monte Carlo..."):
+        mc_fig, mc_sims, mc_p10, mc_p25, mc_p50, mc_p75, mc_p90 = build_monte_carlo_chart(df["close"], coin_label)
+
+    st.plotly_chart(mc_fig, use_container_width=True)
+
+    # Prediction table per horizon
+    horizons = [
+        (3,   "3 hari"),
+        (7,   "7 hari"),
+        (30,  "30 hari"),
+        (90,  "90 hari"),
+        (365, "365 hari"),
+    ]
+    mc_rows = []
+    for d, lbl in horizons:
+        idx = d - 1
+        p10v  = mc_p10[idx]
+        p25v  = mc_p25[idx]
+        p50v  = mc_p50[idx]
+        p75v  = mc_p75[idx]
+        p90v  = mc_p90[idx]
+        prob_up = (mc_sims[idx] > cur_price).mean() * 100
+        mc_rows.append({
+            "Horizon":         lbl,
+            "Pesimis (P10)":   fmt_price(p10v),
+            "Bawah (P25)":     fmt_price(p25v),
+            "Median (P50)":    fmt_price(p50v),
+            "Atas (P75)":      fmt_price(p75v),
+            "Optimis (P90)":   fmt_price(p90v),
+            "Prob. naik":      f"{prob_up:.1f}%",
+            "Rentang P25–P75": f"{fmt_price(p25v)} – {fmt_price(p75v)}",
+        })
+    st.dataframe(pd.DataFrame(mc_rows), use_container_width=True, hide_index=True)
+
+    # Key callouts
+    mc_col1, mc_col2, mc_col3 = st.columns(3)
+    d7_up   = (mc_sims[6]   > cur_price).mean() * 100
+    d30_up  = (mc_sims[29]  > cur_price).mean() * 100
+    d365_up = (mc_sims[364] > cur_price).mean() * 100
+    mc_col1.metric("Prob. naik 7 hari",   f"{d7_up:.1f}%",
+                   "bullish" if d7_up > 55 else "bearish" if d7_up < 45 else "netral")
+    mc_col2.metric("Prob. naik 30 hari",  f"{d30_up:.1f}%",
+                   "bullish" if d30_up > 55 else "bearish" if d30_up < 45 else "netral")
+    mc_col3.metric("Prob. naik 365 hari", f"{d365_up:.1f}%",
+                   "bullish" if d365_up > 55 else "bearish" if d365_up < 45 else "netral")
+
+    with st.expander("Cara membaca simulasi Monte Carlo"):
+        st.markdown("""
+**Apa itu Monte Carlo?**
+Model ini mensimulasikan ribuan kemungkinan jalur harga di masa depan berdasarkan dua parameter historis: **drift** (kecenderungan rata-rata naik/turun) dan **volatilitas** (seberapa liar pergerakan harganya).
+
+**Cara membaca tabel:**
+| Kolom | Artinya |
+|-------|---------|
+| Pesimis P10 | 90% simulasi menghasilkan harga di atas angka ini |
+| Bawah P25 | 75% simulasi menghasilkan harga di atas angka ini |
+| Median P50 | Titik tengah — 50% di atas, 50% di bawah |
+| Atas P75 | Hanya 25% simulasi mencapai harga ini atau lebih |
+| Optimis P90 | Hanya 10% simulasi mencapai harga ini (skenario paling bullish) |
+| Prob. naik | Persentase simulasi yang berakhir di atas harga sekarang |
+
+**Catatan penting:**
+Monte Carlo bukan crystal ball. Semakin jauh horizon waktu, semakin lebar cone ketidakpastiannya. Gunakan sebagai **konteks risiko**, bukan sebagai sinyal entry/exit.
+        """)
 
 if auto_refresh:
     time.sleep(60)
