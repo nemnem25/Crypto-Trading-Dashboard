@@ -89,15 +89,86 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 COINS = {
-    "BTC / USD": "bitcoin",
-    "ETH / USD": "ethereum",
-    "BNB / USD": "binancecoin",
-    "SOL / USD": "solana",
-    "XRP / USD": "ripple",
-    "ADA / USD": "cardano",
+    # ── Layer 1: Blue-chip
+    "BTC / USD":  "bitcoin",
+    "ETH / USD":  "ethereum",
+    "BNB / USD":  "binancecoin",
+    "SOL / USD":  "solana",
+    "XRP / USD":  "ripple",
+    "ADA / USD":  "cardano",
     "DOGE / USD": "dogecoin",
     "AVAX / USD": "avalanche-2",
+    "TON / USD":  "the-open-network",
+    "SHIB / USD": "shiba-inu",
+    # ── Layer 2: Large cap
+    "DOT / USD":  "polkadot",
+    "LINK / USD": "chainlink",
+    "LTC / USD":  "litecoin",
+    "MATIC / USD":"matic-network",
+    "UNI / USD":  "uniswap",
+    "ATOM / USD": "cosmos",
+    "ICP / USD":  "internet-computer",
+    "NEAR / USD": "near",
+    "APT / USD":  "aptos",
+    "FIL / USD":  "filecoin",
+    "HBAR / USD": "hedera-hashgraph",
+    "VET / USD":  "vechain",
+    "ALGO / USD": "algorand",
+    "XLM / USD":  "stellar",
+    "XMR / USD":  "monero",
+    # ── Layer 3: Mid cap / L2
+    "ARB / USD":  "arbitrum",
+    "OP / USD":   "optimism",
+    "INJ / USD":  "injective-protocol",
+    "SUI / USD":  "sui",
+    "TIA / USD":  "celestia",
+    "IMX / USD":  "immutable-x",
+    "STX / USD":  "blockstack",
+    "FTM / USD":  "fantom",
+    "RUNE / USD": "thorchain",
+    "THETA / USD":"theta-token",
+    "EOS / USD":  "eos",
+    "NEO / USD":  "neo",
+    "ZEC / USD":  "zcash",
+    "DASH / USD": "dash",
+    "WAVES / USD":"waves",
+    # ── Layer 4: DeFi
+    "AAVE / USD": "aave",
+    "MKR / USD":  "maker",
+    "CRV / USD":  "curve-dao-token",
+    "LDO / USD":  "lido-dao",
+    "GMX / USD":  "gmx",
+    "DYDX / USD": "dydx",
+    "SNX / USD":  "havven",
+    "YFI / USD":  "yearn-finance",
+    "SUSHI / USD":"sushi",
+    "KAVA / USD": "kava",
+    # ── Layer 5: GameFi / NFT
+    "SAND / USD": "the-sandbox",
+    "MANA / USD": "decentraland",
+    "AXS / USD":  "axie-infinity",
+    "GALA / USD": "gala",
+    # ── Layer 6: Meme
+    "PEPE / USD": "pepe",
+    "BONK / USD": "bonk",
+    "WIF / USD":  "dogwifcoin",
 }
+
+LOGO_SVG = """
+<svg viewBox="0 0 60 60" xmlns="http://www.w3.org/2000/svg">
+  <circle cx="30" cy="30" r="30" fill="#111"/>
+  <circle cx="30" cy="30" r="28" fill="none" stroke="#222" stroke-width="1"/>
+  <path d="M9,40 L15,28 L21,33 L29,17 L37,25 L44,13 L51,19"
+        fill="none" stroke="#3b6d11" stroke-width="2.4"
+        stroke-linecap="round" stroke-linejoin="round"/>
+  <circle cx="21" cy="33" r="2.8" fill="#ef9f27"/>
+  <circle cx="37" cy="25" r="2.8" fill="#ef9f27"/>
+  <line x1="9" y1="45" x2="51" y2="45" stroke="#2a2a2a" stroke-width="1.2"/>
+  <text x="30" y="55" text-anchor="middle"
+        font-size="8.5" font-weight="800" fill="#666"
+        font-family="Arial,sans-serif" letter-spacing="1.5">CTSA</text>
+</svg>
+"""
 
 DAYS_MAP = {
     "1 hari":  1,
@@ -777,10 +848,219 @@ def badge(val, good_above=None, bad_above=None):
     return "🟡"
 
 
+def generate_technical_narrative(coin_lbl, cur_price, pct_24h, sig,
+                                  fib_levels, sr_channels,
+                                  fg_now=None, mc_prob_7d=None, days_lbl=""):
+    coin_name  = coin_lbl.split(" / ")[0]
+    price_str  = fmt_price(cur_price)
+    pct_str    = f"{pct_24h:+.2f}%"
+    rsi        = round(sig["rsi"], 1)
+    sk         = round(sig["stoch_k"], 1)
+    hist       = sig["hist"]
+    e20, e50   = sig["e20"], sig["e50"]
+    adx        = round(sig["adx"], 1)
+    dip, dim   = sig["dip"], sig["dim"]
+    atr        = sig["atr"]
+    total      = sig["buy_score"] - sig["sell_score"]
+
+    ema_rel  = "di atas" if e20 > e50 else "di bawah"
+    trend_lbl= "bullish" if e20 > e50 else "bearish"
+
+    if adx > 35:   adx_lbl = "sangat kuat"
+    elif adx > 25: adx_lbl = "valid dan terukur"
+    elif adx > 18: adx_lbl = "sedang terbentuk"
+    else:          adx_lbl = "lemah — pasar cenderung sideways"
+
+    adx_bias = "berpihak pada kenaikan" if dip > dim else "mengarah pada tekanan jual"
+
+    if rsi < 35:   rsi_lbl = "berada dalam kondisi oversold"
+    elif rsi < 45: rsi_lbl = "berada di area rendah dengan potensi pemulihan"
+    elif rsi < 55: rsi_lbl = "berada di zona netral"
+    elif rsi < 65: rsi_lbl = "menunjukkan momentum beli yang sehat"
+    else:          rsi_lbl = "mendekati zona overbought"
+
+    macd_lbl = ("menunjukkan momentum beli yang menguat" if hist > 0
+                else "mengindikasikan tekanan jual yang mendominasi")
+
+    sup_zones = [ch for ch in sr_channels if ch["hi"] < cur_price]
+    res_zones = [ch for ch in sr_channels if ch["lo"] > cur_price]
+    if sup_zones:
+        ns = max(sup_zones, key=lambda x: x["hi"])
+        sup_txt = f"${ns['lo']:,.2f}–${ns['hi']:,.2f}"
+    else:
+        sup_txt = "tidak teridentifikasi dalam periode ini"
+    if res_zones:
+        nr = min(res_zones, key=lambda x: x["lo"])
+        res_txt = f"${nr['lo']:,.2f}–${nr['hi']:,.2f}"
+    else:
+        res_txt = "tidak teridentifikasi dalam periode ini"
+
+    near_fib = (min(fib_levels, key=lambda f: abs(cur_price - f["price"]))
+                if fib_levels else None)
+    fib_txt = (f"level {near_fib['label']} di {fmt_price(near_fib['price'])}"
+               if near_fib else "area tengah swing")
+    fib_dist = (f"{(cur_price - near_fib['price']) / cur_price * 100:+.2f}%"
+                if near_fib else "")
+
+    mc_txt = (f"Simulasi Monte Carlo dengan enam ratus iterasi menunjukkan probabilitas "
+              f"{mc_prob_7d:.0f}% bahwa harga akan berada lebih tinggi dalam tujuh hari ke depan."
+              if mc_prob_7d is not None else "")
+
+    if fg_now is not None:
+        if fg_now <= 24:   fg_lbl = f"Extreme Fear ({fg_now}/100), yang secara historis merupakan zona akumulasi bagi investor jangka menengah"
+        elif fg_now <= 44: fg_lbl = f"Fear ({fg_now}/100), mengindikasikan ketidakpastian yang masih mendominasi psikologi pasar"
+        elif fg_now <= 55: fg_lbl = f"Neutral ({fg_now}/100), pasar dalam fase konsolidasi psikologis"
+        elif fg_now <= 74: fg_lbl = f"Greed ({fg_now}/100), sentimen positif yang perlu dipantau agar tidak berlebihan"
+        else:              fg_lbl = f"Extreme Greed ({fg_now}/100), zona yang sering mendahului koreksi signifikan"
+        fg_txt = f"Fear & Greed Index berada di zona {fg_lbl}."
+    else:
+        fg_txt = ""
+
+    if total > 3:    concl = "secara keseluruhan condong kuat ke arah beli, dengan mayoritas indikator memberikan konfirmasi yang searah"
+    elif total > 0:  concl = "menunjukkan bias beli yang moderat, meskipun belum semua indikator memberikan sinyal yang selaras"
+    elif total == 0: concl = "berada dalam keseimbangan antara tekanan beli dan jual, mencerminkan kondisi pasar yang masih konsolidasi"
+    elif total > -3: concl = "menunjukkan kecenderungan jual yang perlu diwaspadai sebelum mengambil posisi baru"
+    else:            concl = "memberikan sinyal jual yang cukup tegas dari berbagai indikator teknikal secara bersamaan"
+
+    p1 = (f"{coin_name} saat ini diperdagangkan di harga {price_str} dengan perubahan {pct_str} dalam dua puluh empat jam terakhir. "
+          f"Dari perspektif analisis tren jangka menengah, EMA dua puluh periode berada {ema_rel} EMA lima puluh periode, "
+          f"mempertahankan struktur {trend_lbl} yang terbentuk pada beberapa sesi perdagangan terakhir. "
+          f"ADX dengan nilai {adx} menunjukkan kekuatan tren yang {adx_lbl}, di mana arah dominan {adx_bias}.")
+
+    p2 = (f"Dari sisi indikator momentum, RSI-14 {rsi_lbl} di angka {rsi}, "
+          f"sementara Stochastic RSI %K berada di {sk} yang memberikan gambaran lebih sensitif tentang kondisi pasar jangka pendek. "
+          f"MACD histogram yang bernilai {'positif' if hist > 0 else 'negatif'} saat ini {macd_lbl}. "
+          f"Kombinasi ketiga indikator momentum ini {concl}.")
+
+    p3 = (f"Dari sisi struktur harga, zona support terdekat teridentifikasi di kisaran {sup_txt}, "
+          f"sementara area resistance pertama yang perlu ditembus berada di {res_txt}. "
+          f"Level Fibonacci Retracement menempatkan harga saat ini paling dekat dengan {fib_txt} ({fib_dist} dari harga sekarang), "
+          f"sebuah area yang kerap menjadi titik keputusan penting bagi pelaku pasar institusional. "
+          f"ATR empat belas periode senilai {fmt_price(round(atr, 2 if cur_price < 100 else 0))} "
+          f"mencerminkan volatilitas harian yang perlu diperhitungkan dalam penentuan ukuran posisi dan jarak stop loss.")
+
+    p4 = (f"{mc_txt} {fg_txt} "
+          f"Secara keseluruhan, kondisi teknikal {coin_name} pada periode {days_lbl} ini menempatkan pasar dalam posisi yang "
+          f"{'menarik untuk dicermati oleh trader aktif dengan manajemen risiko yang ketat' if total >= 0 else 'memerlukan kewaspadaan ekstra dan kesabaran sebelum mengambil posisi baru'}. "
+          f"Seperti selalu dalam analisis teknikal, tidak ada sinyal yang sempurna — penempatan stop loss yang disiplin "
+          f"di bawah zona support kritis dan pengelolaan ukuran posisi yang proporsional tetap menjadi fondasi utama dalam setiap keputusan trading.")
+
+    return "\n\n".join([p1, p2, p3, p4])
+
+
+def generate_simple_narrative(coin_lbl, cur_price, pct_24h, sig,
+                               sr_channels, fg_now=None, mc_prob_7d=None):
+    coin_name  = coin_lbl.split(" / ")[0]
+    price_str  = fmt_price(cur_price)
+    total      = sig["buy_score"] - sig["sell_score"]
+    rsi        = round(sig["rsi"], 1)
+    adx        = round(sig["adx"], 1)
+    sk         = round(sig["stoch_k"], 1)
+    e20, e50   = sig["e20"], sig["e50"]
+    atr        = sig["atr"]
+
+    is_bull   = total > 0
+    is_strong = abs(total) > 3
+
+    if total > 3:    bias = "BELI"; bias_color = "#27500a"; bias_bg = "#eaf3de"; bar_color = "#3b6d11"
+    elif total > 0:  bias = "BELI (hati-hati)"; bias_color = "#27500a"; bias_bg = "#eaf3de"; bar_color = "#639922"
+    elif total == 0: bias = "NETRAL / TUNGGU"; bias_color = "#444"; bias_bg = "#f1efe8"; bar_color = "#888"
+    elif total > -3: bias = "JUAL / HATI-HATI"; bias_color = "#791f1f"; bias_bg = "#fcebeb"; bar_color = "#d85a30"
+    else:            bias = "JUAL"; bias_color = "#791f1f"; bias_bg = "#fcebeb"; bar_color = "#a32d2d"
+
+    conf = min(92, max(35, abs(total) * 9 + 40))
+    conf_lbl = "Kuat" if conf >= 70 else "Sedang" if conf >= 50 else "Lemah"
+
+    trend_str = "naik" if e20 > e50 else "turun"
+    trend_analogy = (
+        "seperti arus sungai yang sedang mengalir ke atas — belum berhenti dan masih memiliki tenaga"
+        if is_bull else
+        "seperti mobil di turunan — gravitasi sedang bekerja ke bawah dan perlu rem ekstra"
+    )
+
+    rsi_txt = ("pasar belum memasuki zona jenuh beli" if rsi < 60
+               else "pasar sudah mendekati zona jenuh beli, perlu hati-hati"
+               if rsi < 70 else "pasar dalam kondisi jenuh beli yang kuat")
+
+    mc_txt = (f"Proyeksi probabilistik menunjukkan kemungkinan {mc_prob_7d:.0f}% harga akan lebih tinggi dalam tujuh hari ke depan."
+              if mc_prob_7d is not None else "")
+
+    fg_txt = ""
+    if fg_now is not None:
+        if fg_now <= 24:   fg_txt = f"Sentimen pasar saat ini adalah Extreme Fear ({fg_now}/100) — secara historis ini justru sering menjadi peluang beli yang baik."
+        elif fg_now <= 44: fg_txt = f"Sentimen pasar masih dalam zona Fear ({fg_now}/100) — banyak investor yang masih ragu dan cemas."
+        elif fg_now <= 55: fg_txt = f"Sentimen pasar berada di zona Netral ({fg_now}/100) — pasar sedang mencari arah."
+        elif fg_now <= 74: fg_txt = f"Sentimen pasar berada di Greed ({fg_now}/100) — euforia mulai terasa, waspadai potensi koreksi."
+        else:              fg_txt = f"Sentimen pasar dalam kondisi Extreme Greed ({fg_now}/100) — ini zona di mana banyak koreksi besar dimulai."
+
+    if is_bull:
+        action_main = "Pertimbangkan posisi BELI dengan manajemen risiko ketat"
+        action_sub  = "Pasang limit order — jangan gunakan market order. Selalu pasang stop loss sebelum entry."
+        summary = (
+            f"{coin_name} saat ini menunjukkan tanda-tanda yang {'cukup menarik' if is_strong else 'mulai menarik'} untuk diperhatikan. "
+            f"Harga {price_str} berada dalam kondisi {trend_analogy}. "
+            f"Secara sederhana, sebagian besar sinyal teknikal saat ini mendukung kenaikan harga lebih lanjut, {rsi_txt}. "
+            f"{mc_txt} {fg_txt} "
+            f"Meski begitu, ingatlah bahwa tidak ada yang namanya kepastian di pasar kripto — "
+            f"selalu siapkan skenario terburuk sebelum masuk posisi."
+        )
+    elif total == 0:
+        action_main = "Tunggu — sinyal belum jelas ke arah manapun"
+        action_sub  = "Pasar sedang dalam fase konsolidasi. Tunggu breakout yang dikonfirmasi sebelum entry."
+        summary = (
+            f"{coin_name} saat ini berada dalam kondisi yang belum memberikan arah yang jelas. "
+            f"Harga {price_str} bergerak sideways, {trend_analogy}. "
+            f"Indikator teknikal sedang saling bertentangan satu sama lain — sebagian mendukung kenaikan, sebagian lagi mengindikasikan penurunan. "
+            f"{fg_txt} Dalam kondisi seperti ini, kesabaran adalah strategi terbaik. "
+            f"Tunggu hingga salah satu arah dikonfirmasi oleh lebih banyak indikator sebelum mengambil posisi."
+        )
+    else:
+        action_main = "Tahan / Pertimbangkan Ambil Profit"
+        action_sub  = "Jika sudah punya posisi beli, perketat stop loss. Jika belum masuk, tunggu dulu."
+        summary = (
+            f"{coin_name} saat ini menunjukkan tanda-tanda {'pelemahan yang signifikan' if not is_strong else 'tekanan jual yang perlu diwaspadai'}. "
+            f"Harga {price_str} bergerak {trend_analogy}. "
+            f"Beberapa indikator teknikal mulai memberikan sinyal kehati-hatian — bayangkan seperti lampu kuning di persimpangan: bukan berarti berhenti total, "
+            f"tapi perlambat dan waspada. "
+            f"{mc_txt} {fg_txt} "
+            f"Jika Anda sudah memiliki posisi beli, ini saat yang tepat untuk memperketat stop loss atau mempertimbangkan ambil sebagian profit."
+        )
+
+    sup_zones = [ch for ch in sr_channels if ch["hi"] < cur_price]
+    res_zones = [ch for ch in sr_channels if ch["lo"] > cur_price]
+    sup_price = fmt_price(max(sup_zones, key=lambda x: x["hi"])["hi"]) if sup_zones else "—"
+    res_price = fmt_price(min(res_zones, key=lambda x: x["lo"])["lo"]) if res_zones else "—"
+
+    return {
+        "bias": bias, "bias_color": bias_color, "bias_bg": bias_bg,
+        "bar_color": bar_color, "is_bull": is_bull,
+        "conf": conf, "conf_lbl": conf_lbl,
+        "summary": summary, "action_main": action_main, "action_sub": action_sub,
+        "rsi": rsi, "adx": adx, "sk": sk,
+        "trend_str": trend_str, "fg_now": fg_now,
+        "sup_price": sup_price, "res_price": res_price,
+        "mc_prob": mc_prob_7d,
+        "buy_entry": sig["buy_entry"], "sell_entry": sig["sell_entry"],
+        "buy_tp1": sig["buy_tp1"], "sell_tp1": sig["sell_tp1"],
+        "buy_tp2": sig["buy_tp2"], "sell_tp2": sig["sell_tp2"],
+        "buy_sl": sig["buy_sl"], "sell_sl": sig["sell_sl"],
+    }
+
+
 # ── SIDEBAR ───────────────────────────────────────────────────────────────────
 
 with st.sidebar:
-    st.markdown("## ⚙️ Settings")
+    # Logogram
+    st.markdown(f"""
+    <div style="display:flex;align-items:center;gap:10px;padding:10px 4px 14px 4px;border-bottom:1px solid #e8e8e8;margin-bottom:14px">
+      <div style="width:44px;height:44px;flex-shrink:0">{LOGO_SVG}</div>
+      <div>
+        <div style="font-size:13px;font-weight:700;color:#111;font-family:sans-serif;letter-spacing:-0.2px">Crypto Trading Signal App</div>
+        <div style="font-size:10px;color:#888;font-family:sans-serif;letter-spacing:.8px;margin-top:1px">CTSA &nbsp;·&nbsp; v8.0 &nbsp;<span style="background:#111;color:#fff;padding:1px 5px;border-radius:3px;font-size:9px">BETA</span></div>
+      </div>
+    </div>
+    """, unsafe_allow_html=True)
+
     coin_label = st.selectbox("Pair", list(COINS.keys()), index=0)
     coin_id    = COINS[coin_label]
 
@@ -808,6 +1088,8 @@ with st.sidebar:
     show_signals  = st.checkbox("Sinyal Beli / Jual", value=True)
     show_fg       = st.checkbox("Fear & Greed Index", value=True)
     show_mc       = st.checkbox("Simulasi Monte Carlo", value=True)
+    show_narasi   = st.checkbox("Narasi Teknikal (300 kata)", value=True)
+    show_awam     = st.checkbox("Narasi untuk Awam", value=True)
 
     st.markdown("---")
     auto_refresh = st.checkbox("Auto-refresh (60 dtk)", value=False)
@@ -816,7 +1098,7 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.caption("Sumber data: CoinGecko API\nFear & Greed: alternative.me\nCache: 60 dtk · v5.0")
+    st.caption("Data: CoinGecko API · Fear & Greed: alternative.me\nCache 60 dtk · v8.0")
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
@@ -842,40 +1124,39 @@ mkt_cap   = md.get("market_cap", {}).get("usd", 0)
 vol_24h   = md.get("total_volume", {}).get("usd", 0)
 
 # ── Title (after data so pct_24h is available)
-pct_sign  = "+" if pct_24h >= 0 else ""
-pct_bg    = "#eaf3de" if pct_24h >= 0 else "#fcebeb"
-pct_color = "#27500a" if pct_24h >= 0 else "#791f1f"
-bar_color = "#3b6d11" if pct_24h >= 0 else "#a32d2d"
-price_str = f"${cur_price:,.2f}"
-pct_str   = f"{pct_sign}{pct_24h:.2f}%"
-time_str  = datetime.now().strftime("%H:%M:%S")
+pct_sign    = "+" if pct_24h >= 0 else ""
+pct_bg      = "#eaf3de" if pct_24h >= 0 else "#fcebeb"
+pct_color   = "#27500a" if pct_24h >= 0 else "#791f1f"
+bar_color   = "#3b6d11" if pct_24h >= 0 else "#a32d2d"
+price_str_h = f"${cur_price:,.2f}"
+pct_str_h   = f"{pct_sign}{pct_24h:.2f}%"
+time_str_h  = datetime.now().strftime("%H:%M:%S")
 
 st.markdown(f"""
-<div style="margin:0 0 20px 0;padding:14px 18px;border-left:4px solid {bar_color};background:#f8f9fa;border-radius:0 8px 8px 0;display:flex;align-items:stretch;justify-content:space-between;gap:16px;flex-wrap:wrap">
-
+<div style="margin:0 0 0 0;padding:14px 18px;border-left:4px solid {bar_color};background:#f8f9fa;border-radius:0 8px 8px 0;display:flex;align-items:stretch;justify-content:space-between;gap:16px;flex-wrap:wrap">
   <div>
     <div style="font-size:10px;font-weight:700;letter-spacing:1.5px;color:#999;text-transform:uppercase;margin-bottom:6px;font-family:sans-serif">
-      Dashboard &nbsp;·&nbsp; {days_label} &nbsp;·&nbsp; {time_str}
+      Dashboard &nbsp;·&nbsp; {days_label} &nbsp;·&nbsp; {time_str_h}
     </div>
     <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
       <span style="font-size:20px;font-weight:700;color:#111;font-family:sans-serif">{coin_label}</span>
-      <span style="font-size:24px;font-weight:700;color:#111;font-family:sans-serif;letter-spacing:-0.5px">{price_str}</span>
-      <span style="font-size:13px;font-weight:600;padding:3px 10px;border-radius:20px;background:{pct_bg};color:{pct_color};font-family:sans-serif">{pct_str}</span>
+      <span style="font-size:24px;font-weight:700;color:#111;font-family:sans-serif;letter-spacing:-0.5px">{price_str_h}</span>
+      <span style="font-size:13px;font-weight:600;padding:3px 10px;border-radius:20px;background:{pct_bg};color:{pct_color};font-family:sans-serif">{pct_str_h}</span>
     </div>
   </div>
-
-  <div style="text-align:right;display:flex;flex-direction:column;justify-content:center;padding-left:16px;border-left:1px solid #e0e0e0">
-    <div style="font-size:16px;font-weight:700;color:#111;font-family:sans-serif;letter-spacing:-0.3px;white-space:nowrap">
-      Crypto Trading Signal App
-    </div>
-    <div style="font-size:12px;font-weight:600;color:#888;font-family:sans-serif;letter-spacing:1px;margin-top:2px;white-space:nowrap">
-      CTSA &nbsp;·&nbsp; v8.0
-    </div>
-    <div style="margin-top:6px">
-      <span style="font-size:10px;font-weight:600;padding:2px 8px;border-radius:3px;background:#111;color:#fff;font-family:sans-serif;letter-spacing:.5px">BETA</span>
+  <div style="display:flex;align-items:center;gap:12px;padding-left:18px;border-left:1px solid #e0e0e0">
+    <div style="width:48px;height:48px;flex-shrink:0">{LOGO_SVG}</div>
+    <div style="text-align:right">
+      <div style="font-size:15px;font-weight:700;color:#111;font-family:sans-serif;letter-spacing:-0.3px;white-space:nowrap">Crypto Trading Signal App</div>
+      <div style="font-size:11px;font-weight:600;color:#888;font-family:sans-serif;letter-spacing:1px;margin-top:1px;white-space:nowrap">CTSA &nbsp;·&nbsp; v8.0</div>
+      <div style="margin-top:5px"><span style="font-size:9px;font-weight:600;padding:2px 7px;border-radius:3px;background:#111;color:#fff;font-family:sans-serif;letter-spacing:.5px">BETA</span></div>
     </div>
   </div>
-
+</div>
+<div style="margin:0 0 16px 0;padding:9px 18px;background:#f4f4f4;border-radius:0 0 8px 8px;border:0.5px solid #e8e8e8;border-top:none">
+  <span style="font-size:11px;color:#666;line-height:1.6;font-family:sans-serif">
+    <strong style="color:#333">CTSA</strong> menggabungkan 9 indikator teknikal, S/R Channels, Fibonacci, Monte Carlo, dan Fear &amp; Greed Index dalam satu dashboard — membantu trader membuat keputusan entry/exit yang lebih terstruktur. Tersedia untuk <strong style="color:#333">{len(COINS)} pasangan aset</strong> · Data real-time via CoinGecko API.
+  </span>
 </div>
 """, unsafe_allow_html=True)
 
@@ -1386,6 +1667,152 @@ Model ini mensimulasikan ribuan kemungkinan jalur harga di masa depan berdasarka
 **Catatan penting:**
 Monte Carlo bukan crystal ball. Semakin jauh horizon waktu, semakin lebar cone ketidakpastiannya. Gunakan sebagai **konteks risiko**, bukan sebagai sinyal entry/exit.
         """)
+
+# ── Collect MC and FG values for narratives
+_mc_prob_7d  = float((mc_sims[6] > cur_price).mean() * 100) if show_mc and 'mc_sims' in dir() else None
+_fg_now      = int(fg_data[0]["value"]) if (show_fg and fg_data) else None
+_sr_all      = calc_sr_channels(df)   # always compute for narratives
+
+# ── Narasi Teknikal (300 kata)
+if show_narasi:
+    st.markdown("---")
+    st.markdown("##### Narasi Teknikal")
+    st.caption("Ringkasan analisis teknikal dalam format narasi — dapat disalin untuk referensi artikel atau konten.")
+
+    narasi_teknikal = generate_technical_narrative(
+        coin_label, cur_price, pct_24h, sig,
+        fib_levels if fib_levels else calc_fibonacci(df),
+        _sr_all, _fg_now, _mc_prob_7d, days_label
+    )
+
+    # Header kartu narasi
+    total_score = sig["buy_score"] - sig["sell_score"]
+    bias_lbl  = "Bullish" if total_score > 0 else "Bearish" if total_score < 0 else "Netral"
+    bias_clr  = "#27500a" if total_score > 0 else "#791f1f" if total_score < 0 else "#444"
+    bias_bg2  = "#eaf3de" if total_score > 0 else "#fcebeb" if total_score < 0 else "#f1efe8"
+    tags_html = "".join([
+        f'<span style="font-size:10px;padding:2px 8px;border-radius:20px;background:#f1f1f1;color:#666;font-family:sans-serif;margin-right:4px">{t}</span>'
+        for t in [coin_label, days_label, bias_lbl,
+                  f"RSI {round(sig['rsi'],1)}",
+                  f"ADX {round(sig['adx'],1)}",
+                  f"MC {_mc_prob_7d:.0f}%" if _mc_prob_7d else ""]
+        if t
+    ])
+    st.markdown(f"""
+<div style="background:#fff;border:0.5px solid #e8e8e8;border-radius:12px;padding:22px 26px;font-family:sans-serif">
+  <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;padding-bottom:10px;border-bottom:1px solid #f0f0f0;flex-wrap:wrap;gap:8px">
+    <span style="font-size:13px;font-weight:700;color:#111">Analisis Teknikal — {coin_label} &nbsp;·&nbsp; {days_label}</span>
+    <span style="font-size:10px;color:#aaa;text-align:right">
+      {datetime.now().strftime("%d %b %Y, %H:%M")} &nbsp;·&nbsp;
+      <span style="font-weight:700;color:{bias_clr}">{bias_lbl}</span>
+    </span>
+  </div>
+  <div style="font-size:13px;line-height:1.9;color:#333;text-align:justify;white-space:pre-line">{narasi_teknikal}</div>
+  <div style="margin-top:14px;padding-top:10px;border-top:1px solid #f0f0f0;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px">
+    <div>{tags_html}</div>
+    <span style="font-size:10px;color:#bbb;font-style:italic">Salin teks di atas untuk referensi artikel atau konten</span>
+  </div>
+</div>
+""", unsafe_allow_html=True)
+
+# ── Narasi untuk Awam
+if show_awam:
+    st.markdown("---")
+    st.markdown("##### Ringkasan untuk Pemula")
+    st.caption("Penjelasan kondisi pasar dalam bahasa sederhana — fokus pada keputusan: beli, jual, atau tunggu.")
+
+    aw = generate_simple_narrative(
+        coin_label, cur_price, pct_24h, sig,
+        _sr_all, _fg_now, _mc_prob_7d
+    )
+
+    is_bull_aw = aw["is_bull"]
+    hero_bg    = "#eaf3de" if is_bull_aw else "#fcebeb" if aw["bias"].startswith("JUAL") else "#f1f0eb"
+    strip_bg   = "#f2faf0" if is_bull_aw else "#fff8f8" if aw["bias"].startswith("JUAL") else "#f8f8f6"
+    icon_svg   = (
+        '<svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">'
+        '<polyline points="4,18 10,10 16,14 22,5" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
+        '<polyline points="22,5 22,11" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>'
+        '<polyline points="22,5 16,5" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>'
+        '</svg>'
+        if is_bull_aw else
+        '<svg width="26" height="26" viewBox="0 0 26 26" fill="none" xmlns="http://www.w3.org/2000/svg">'
+        '<polyline points="4,8 10,16 16,12 22,21" stroke="#fff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>'
+        '<polyline points="22,21 22,15" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>'
+        '<polyline points="22,21 16,21" stroke="#fff" stroke-width="2.5" stroke-linecap="round"/>'
+        '</svg>'
+    )
+
+    entry_p  = fmt_price(aw["buy_entry"]  if is_bull_aw else aw["sell_entry"])
+    tp1_p    = fmt_price(aw["buy_tp1"]   if is_bull_aw else aw["sell_tp1"])
+    tp2_p    = fmt_price(aw["buy_tp2"]   if is_bull_aw else aw["sell_tp2"])
+    sl_p     = fmt_price(aw["buy_sl"]    if is_bull_aw else aw["sell_sl"])
+    entry_lbl= "Beli di" if is_bull_aw else "Jual di"
+
+    info_items = [
+        ("Tren saat ini",       aw["trend_str"].capitalize(),              "EMA 20/50"),
+        ("Kekuatan tren",       f"ADX {aw['adx']}",                       "Kuat" if aw['adx']>25 else "Lemah"),
+        ("Momentum",            f"RSI {aw['rsi']}",                       "Oversold" if aw['rsi']<35 else "Overbought" if aw['rsi']>65 else "Normal"),
+        ("Sentimen pasar",      f"F&G {_fg_now}/100" if _fg_now else "—", ("Extreme Fear" if _fg_now<=24 else "Greed" if _fg_now>=60 else "Neutral") if _fg_now else "—"),
+        ("Peluang naik 7 hari", f"{_mc_prob_7d:.0f}%" if _mc_prob_7d else "—", "Monte Carlo"),
+        ("Volatilitas harian",  fmt_price(round(sig['atr'], 2 if cur_price<100 else 0)), "ATR 14"),
+    ]
+
+    info_html = "".join([f"""
+      <div style="background:#f8f8f8;border-radius:8px;padding:10px 12px">
+        <div style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#999;margin-bottom:3px;font-family:sans-serif">{lbl}</div>
+        <div style="font-size:13px;font-weight:700;color:#111;font-family:sans-serif">{val}</div>
+        <div style="font-size:10px;color:#888;margin-top:1px;font-family:sans-serif">{sub}</div>
+      </div>""" for lbl, val, sub in info_items])
+
+    st.markdown(f"""
+<div style="border-radius:12px;overflow:hidden;border:1px solid #e0e0e0;font-family:sans-serif">
+
+  <div style="padding:18px 22px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;background:{hero_bg}">
+    <div style="display:flex;align-items:center;gap:14px">
+      <div style="width:50px;height:50px;border-radius:50%;background:{aw['bar_color']};display:flex;align-items:center;justify-content:center;flex-shrink:0">
+        {icon_svg}
+      </div>
+      <div>
+        <div style="font-size:22px;font-weight:800;color:{aw['bias_color']};letter-spacing:-0.5px;line-height:1.1">Sinyal {aw['bias']}</div>
+        <div style="font-size:12px;color:#5f5e5a;margin-top:3px;font-weight:500">Berdasarkan analisis {len(sig['all_indicators'])} indikator teknikal</div>
+      </div>
+    </div>
+    <div style="text-align:right">
+      <div style="font-size:10px;color:#888;text-transform:uppercase;letter-spacing:.8px;margin-bottom:4px">Kepercayaan sinyal</div>
+      <div style="width:120px;height:8px;background:rgba(0,0,0,.1);border-radius:4px;overflow:hidden;margin-left:auto">
+        <div style="height:100%;width:{aw['conf']}%;background:{aw['bar_color']};border-radius:4px"></div>
+      </div>
+      <div style="font-size:16px;font-weight:700;color:{aw['bias_color']};margin-top:4px">{aw['conf']}% &nbsp;<span style="font-size:11px;font-weight:500;color:#888">{aw['conf_lbl']}</span></div>
+    </div>
+  </div>
+
+  <div style="padding:18px 22px;background:#fff">
+    <p style="font-size:13px;line-height:1.85;color:#333;margin-bottom:16px">{aw['summary']}</p>
+    <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:4px">
+      {info_html}
+    </div>
+  </div>
+
+  <div style="padding:14px 22px;display:flex;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;gap:12px;background:{strip_bg};border-top:1px solid #f0f0f0">
+    <div>
+      <div style="font-size:13px;font-weight:700;color:{aw['bias_color']}">{aw['action_main']}</div>
+      <div style="font-size:11px;color:#888;margin-top:2px">{aw['action_sub']}</div>
+    </div>
+    <div style="display:flex;gap:14px;flex-wrap:wrap">
+      <div style="text-align:center"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#aaa;display:block;margin-bottom:2px">{entry_lbl}</span><span style="font-size:12px;font-weight:700;color:#111">{entry_p}</span></div>
+      <div style="text-align:center"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#aaa;display:block;margin-bottom:2px">Target 1</span><span style="font-size:12px;font-weight:700;color:{'#27500a' if is_bull_aw else '#791f1f'}">{tp1_p}</span></div>
+      <div style="text-align:center"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#aaa;display:block;margin-bottom:2px">Target 2</span><span style="font-size:12px;font-weight:700;color:{'#27500a' if is_bull_aw else '#791f1f'}">{tp2_p}</span></div>
+      <div style="text-align:center"><span style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;color:#aaa;display:block;margin-bottom:2px">Stop Loss</span><span style="font-size:12px;font-weight:700;color:{'#791f1f' if is_bull_aw else '#27500a'}">{sl_p}</span></div>
+    </div>
+  </div>
+
+  <div style="padding:9px 22px;background:#f9f9f9;border-top:1px solid #f0f0f0">
+    <span style="font-size:10px;color:#bbb;line-height:1.5">Informasi ini bersifat edukatif dan bukan saran investasi. Keputusan trading sepenuhnya ada di tangan Anda. Pasar kripto sangat volatil dan nilai investasi dapat turun secara signifikan.</span>
+  </div>
+
+</div>
+""", unsafe_allow_html=True)
 
 if auto_refresh:
     time.sleep(60)
