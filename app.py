@@ -216,6 +216,51 @@ def fetch_fear_greed():
     except Exception:
         return []
 
+@st.cache_data(ttl=3600)
+def fetch_fear_greed_cmc(api_key: str):
+    """Fetch Fear & Greed Index dari CoinMarketCap API."""
+    if not api_key:
+        return None
+    try:
+        r = requests.get(
+            "https://pro-api.coinmarketcap.com/v3/fear-and-greed/historical",
+            headers={"X-CMC_PRO_API_KEY": api_key},
+            params={"limit": 30},
+            timeout=10
+        )
+        r.raise_for_status()
+        data = r.json().get("data", [])
+        return data
+    except Exception:
+        return None
+
+def get_fg_consensus(fg_alt: int, fg_cmc: int):
+    """
+    Gabungkan dua sumber Fear & Greed dan hitung skor konsensus.
+    Return: (consensus_value, status, buy_score, sell_score)
+    """
+    avg = (fg_alt + fg_cmc) / 2
+    diff = abs(fg_alt - fg_cmc)
+
+    # Divergensi tinggi = sinyal lemah
+    if diff >= 20:
+        status = "DIVERGEN"
+        buy_score = sell_score = 0
+    else:
+        status = "KONSENSUS"
+        if avg <= 25:
+            buy_score, sell_score = 2, 0   # Extreme Fear — konfirmasi kuat
+        elif avg <= 35:
+            buy_score, sell_score = 1, 0   # Fear — sinyal beli lemah
+        elif avg >= 75:
+            buy_score, sell_score = 0, 2   # Extreme Greed — konfirmasi kuat
+        elif avg >= 65:
+            buy_score, sell_score = 0, 1   # Greed — sinyal jual lemah
+        else:
+            buy_score = sell_score = 0
+
+    return round(avg), status, buy_score, sell_score
+
 
 @st.cache_data(ttl=300)
 def fetch_volume_chart(coin_id: str, days: int):
@@ -1299,7 +1344,20 @@ with st.sidebar:
         st.rerun()
 
     st.markdown("---")
-    st.caption(f"Data: CoinGecko API · Fear & Greed: alternative.me\nCache 60 dtk · v{APP_VERSION}")
+    st.markdown("**CoinMarketCap API (opsional)**")
+    cmc_api_key = st.text_input(
+        "CMC API Key",
+        type="password",
+        placeholder="Masukkan CMC API key...",
+        help="Untuk Fear & Greed Index dari CoinMarketCap. Gratis di pro.coinmarketcap.com"
+    )
+    if cmc_api_key:
+        st.caption("✅ CMC API key aktif — dual F&G enabled")
+    else:
+        st.caption("ℹ️ Tanpa CMC key, hanya pakai alternative.me")
+
+    st.markdown("---")
+    st.caption(f"Data: CoinGecko API · Fear & Greed: alternative.me + CMC\nCache 60 dtk · v{APP_VERSION}")
 
 
 # ── MAIN ──────────────────────────────────────────────────────────────────────
@@ -1314,7 +1372,8 @@ with st.spinner("Mengambil data dari CoinGecko..."):
     except Exception as e:
         st.error(f"Gagal mengambil data: {e}"); st.stop()
 
-fg_data = fetch_fear_greed() if show_fg else []
+fg_data     = fetch_fear_greed() if show_fg else []
+fg_data_cmc = fetch_fear_greed_cmc(cmc_api_key) if (show_fg and cmc_api_key) else None
 
 md        = market.get("market_data", {})
 cur_price = md.get("current_price", {}).get("usd", df["close"].iloc[-1])
@@ -1870,34 +1929,107 @@ i6.metric("Trend Bias", trend, f"score {total:+}")
 if show_fg and fg_data:
     st.markdown("---")
     st.markdown("##### Fear & Greed Index")
-    fg1, fg2, fg3 = st.columns([1, 2, 2])
 
     fg_now   = int(fg_data[0]["value"])
     fg_yday  = int(fg_data[1]["value"]) if len(fg_data) > 1 else fg_now
     fg_7d    = int(fg_data[6]["value"]) if len(fg_data) > 6 else fg_now
     fg_label = fg_data[0]["value_classification"]
 
-    with fg1:
-        st.plotly_chart(build_fg_gauge(fg_now), use_container_width=True)
-        st.markdown(f"""
-        <div style="font-size:11px;color:var(--text-color,#444);margin-top:-10px">
-          <div style="display:flex;justify-content:space-between;padding:3px 0;border-top:1px solid #eee">
-            <span style="color:#888">Kemarin</span><span><b>{fg_yday}</b></span>
-          </div>
-          <div style="display:flex;justify-content:space-between;padding:3px 0;border-top:1px solid #eee">
-            <span style="color:#888">7 hari lalu</span><span><b>{fg_7d}</b></span>
-          </div>
-        </div>""", unsafe_allow_html=True)
+    # CMC data
+    fg_cmc_now = None
+    if fg_data_cmc and len(fg_data_cmc) > 0:
+        fg_cmc_now   = int(fg_data_cmc[0]["value"])
+        fg_cmc_label = fg_data_cmc[0]["value_classification"]
 
-    with fg2:
-        st.markdown("**Histori 14 hari**")
-        fg_hist_fig = build_fg_history(fg_data)
-        if fg_hist_fig:
-            st.plotly_chart(fg_hist_fig, use_container_width=True)
+    # Dual source mode
+    if fg_cmc_now is not None:
+        st.markdown("**Dual Source — Alternative.me + CoinMarketCap**")
+        dc1, dc2, dc3, dc4 = st.columns(4)
 
-    with fg3:
-        st.markdown("**Cara membaca**")
-        st.markdown("""
+        with dc1:
+            st.metric("Alternative.me", fg_now, delta=f"{fg_now - fg_yday:+d} vs kemarin")
+            st.caption(fg_label)
+
+        with dc2:
+            fg_cmc_yday = int(fg_data_cmc[1]["value"]) if len(fg_data_cmc) > 1 else fg_cmc_now
+            st.metric("CoinMarketCap", fg_cmc_now, delta=f"{fg_cmc_now - fg_cmc_yday:+d} vs kemarin")
+            st.caption(fg_cmc_label)
+
+        consensus_val, consensus_status, cs_buy, cs_sell = get_fg_consensus(fg_now, fg_cmc_now)
+
+        with dc3:
+            st.metric("Konsensus", consensus_val)
+            if consensus_status == "DIVERGEN":
+                st.caption(f"⚠️ DIVERGEN — selisih {abs(fg_now - fg_cmc_now)} poin")
+            else:
+                st.caption(f"✅ KONSENSUS — sinyal lebih kuat")
+
+        with dc4:
+            diff = abs(fg_now - fg_cmc_now)
+            if diff >= 20:
+                st.warning(f"⚠️ Dua sumber berbeda {diff} poin — sinyal F&G tidak valid, abaikan untuk scoring")
+            elif diff >= 10:
+                st.info(f"ℹ️ Selisih {diff} poin — gunakan dengan hati-hati")
+            else:
+                if consensus_val <= 25:
+                    st.success(f"✅ Keduanya Extreme Fear — sinyal beli kuat +2")
+                elif consensus_val >= 75:
+                    st.error(f"🔴 Keduanya Extreme Greed — sinyal jual kuat +2")
+                else:
+                    st.info(f"Konsensus: {consensus_val} — {fg_label}")
+
+        # Comparison bar
+        st.markdown("**Perbandingan Visual:**")
+        comp_df = pd.DataFrame({
+            "Sumber": ["Alternative.me", "CoinMarketCap", "Konsensus"],
+            "Nilai": [fg_now, fg_cmc_now, consensus_val]
+        })
+        colors = []
+        for v in comp_df["Nilai"]:
+            if v <= 25:   colors.append("#a32d2d")
+            elif v <= 44: colors.append("#d85a30")
+            elif v <= 55: colors.append("#888780")
+            elif v <= 74: colors.append("#639922")
+            else:         colors.append("#3b6d11")
+
+        fig_comp = go.Figure(go.Bar(
+            x=comp_df["Sumber"], y=comp_df["Nilai"],
+            marker_color=colors,
+            text=comp_df["Nilai"], textposition="outside",
+            textfont=dict(size=14)
+        ))
+        fig_comp.update_layout(
+            height=200, margin=dict(l=10, r=10, t=10, b=10),
+            paper_bgcolor="rgba(0,0,0,0)", plot_bgcolor="rgba(248,249,250,0.5)",
+            yaxis=dict(range=[0, 110], gridcolor="rgba(128,128,128,0.1)"),
+        )
+        st.plotly_chart(fig_comp, use_container_width=True)
+
+    else:
+        # Single source mode (original)
+        fg1, fg2, fg3 = st.columns([1, 2, 2])
+
+        with fg1:
+            st.plotly_chart(build_fg_gauge(fg_now), use_container_width=True)
+            st.markdown(f"""
+            <div style="font-size:11px;color:var(--text-color,#444);margin-top:-10px">
+              <div style="display:flex;justify-content:space-between;padding:3px 0;border-top:1px solid #eee">
+                <span style="color:#888">Kemarin</span><span><b>{fg_yday}</b></span>
+              </div>
+              <div style="display:flex;justify-content:space-between;padding:3px 0;border-top:1px solid #eee">
+                <span style="color:#888">7 hari lalu</span><span><b>{fg_7d}</b></span>
+              </div>
+            </div>""", unsafe_allow_html=True)
+
+        with fg2:
+            st.markdown("**Histori 14 hari**")
+            fg_hist_fig = build_fg_history(fg_data)
+            if fg_hist_fig:
+                st.plotly_chart(fg_hist_fig, use_container_width=True)
+
+        with fg3:
+            st.markdown("**Cara membaca**")
+            st.markdown("""
 | Nilai | Klasifikasi | Sinyal |
 |-------|-------------|--------|
 | 0–24  | Extreme Fear | Potensi beli (contrarian) |
@@ -1906,12 +2038,14 @@ if show_fg and fg_data:
 | 56–74 | Greed | Mulai kurangi posisi |
 | 75–100 | Extreme Greed | Potensi jual (contrarian) |
 """)
-        if fg_now <= 24:
-            st.success(f"Saat ini Extreme Fear ({fg_now}) — secara historis ini zona akumulasi.")
-        elif fg_now >= 75:
-            st.warning(f"Saat ini Extreme Greed ({fg_now}) — pasar mungkin overbought.")
-        else:
-            st.info(f"Saat ini {fg_label} ({fg_now}).")
+            if fg_now <= 24:
+                st.success(f"Saat ini Extreme Fear ({fg_now}) — secara historis ini zona akumulasi.")
+            elif fg_now >= 75:
+                st.warning(f"Saat ini Extreme Greed ({fg_now}) — pasar mungkin overbought.")
+            else:
+                st.info(f"Saat ini {fg_label} ({fg_now}).")
+
+        st.caption("💡 Tambahkan CMC API key di sidebar untuk aktivasi Dual Source F&G")
 
 # ── Heikin-Ashi info
 if show_ha:
